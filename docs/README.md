@@ -10,6 +10,15 @@
 - **D7/D8 owner:** the repo is `ItzSmudge/claude-hacky` (private). ItzSmudge is the only admin, owns the Vercel Hobby project, and merges every `dev → main` release. Everyone else (incl. Mr-Moody/Thomas) has write access.
 - Local Supabase uses ports 544xx (see CLAUDE.md → Stack gotchas).
 
+## Production
+
+- **URL:** https://papercut-ten.vercel.app (Vercel project `papercut`, ItzSmudge's Hobby account, functions in `lhr1`). Custom domain + `scripts/cloudflare-dns.sh` are deferred; the `.vercel.app` URL is what we demo.
+- **Deploys:** only `main` builds (`vercel.json`). A release reaches prod when **ItzSmudge** merges `dev → main`; a merge by anyone else is not deployed (Hobby + private repo).
+- **Database:** hosted Supabase project `papercut` (ref `fhjaemfxbnhezvfhvtpr`, London). Schema only, no seed: the local demo login does not exist on prod. Migrations reach prod when ItzSmudge runs `pnpm exec supabase db push` (after `supabase link`) as part of a release.
+- **Auth:** anonymous sign-ins on; site URL and redirect URL `https://papercut-ten.vercel.app/**`. Google stays off until PR-03.
+- **Env:** Production vars live only in Vercel (Supabase URL/keys, `APP_ENV`, `NEXT_PUBLIC_SITE_URL`, Anthropic key, mailtos). `NEXT_PUBLIC_*` changes need a redeploy.
+- Per-deployment URLs (`papercut-<hash>-…vercel.app`) sit behind Vercel login; the `papercut-ten` alias is public.
+
 ## Claiming and updating tasks
 
 1. `/claim-task <ID>` in Claude Code (or by hand): change `- [ ] <ID>` to `- [~] @<name> <branch> <ID>`, commit `docs(checklist): claim <ID>` on your task branch and push it.

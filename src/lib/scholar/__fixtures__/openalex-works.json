@@ -1,0 +1,304 @@
+{
+  "_note": "W3110709293 mirrors src/fixtures/papers.json in OpenAlex /works shape. W9xxx records are synthetic edge cases, not real papers.",
+  "works": {
+    "real": {
+      "id": "https://openalex.org/W3110709293",
+      "doi": "https://doi.org/10.1016/j.chb.2020.106645",
+      "display_name": "Social media use intensity, social media use problems, and mental health among adolescents: Investigating directionality and mediating processes",
+      "publication_year": 2020,
+      "type": "article",
+      "is_retracted": false,
+      "is_paratext": false,
+      "cited_by_count": 330,
+      "authorships": [
+        {
+          "author": {
+            "display_name": "Maartje Boer"
+          }
+        },
+        {
+          "author": {
+            "display_name": "Gonneke W. J. M. Stevens"
+          }
+        },
+        {
+          "author": {
+            "display_name": "Catrin Finkenauer"
+          }
+        },
+        {
+          "author": {
+            "display_name": "Margaretha E. de Looze"
+          }
+        },
+        {
+          "author": {
+            "display_name": "Regina J. J. M. van den Eijnden"
+          }
+        }
+      ],
+      "primary_location": {
+        "landing_page_url": "https://doi.org/10.1016/j.chb.2020.106645",
+        "source": {
+          "display_name": "Computers in Human Behavior",
+          "type": "journal"
+        }
+      },
+      "best_oa_location": null,
+      "primary_topic": {
+        "display_name": "Impact of Technology on Adolescents"
+      },
+      "topics": [
+        {
+          "display_name": "Impact of Technology on Adolescents"
+        },
+        {
+          "display_name": "Child Development and Digital Technology"
+        },
+        {
+          "display_name": "Mental Health via Writing"
+        }
+      ],
+      "abstract_inverted_index": {
+        "2109": [36],
+        "Social": [0],
+        "media": [1, 23],
+        "have": [2],
+        "become": [3],
+        "increasingly": [4],
+        "integrated": [5],
+        "into": [6],
+        "the": [7, 16, 46, 156, 186, 204],
+        "daily": [8],
+        "lives": [9],
+        "of": [10, 20, 74, 141, 159, 185, 189, 196, 207],
+        "adolescents.": [11],
+        "There": [12],
+        "are": [13],
+        "concerns": [14],
+        "about": [15],
+        "potential": [17, 205],
+        "detrimental": [18],
+        "effects": [19, 195],
+        "adolescents'": [21],
+        "social": [22, 76, 143],
+        "use": [24],
+        "(SMU)": [25],
+        "on": [26, 162],
+        "their": [27],
+        "mental": [28, 63, 92, 118, 126, 164, 171, 212],
+        "health.": [29, 165, 213],
+        "Using": [30],
+        "a": [31, 110],
+        "three-wave": [32],
+        "longitudinal": [33],
+        "study": [34, 48, 191],
+        "among": [35],
+        "secondary": [37],
+        "school": [38, 81],
+        "adolescents": [39],
+        "(Mage": [40],
+        "=": [41, 44],
+        "13.1,": [42],
+        "SDage": [43],
+        "0.8),": [45],
+        "present": [47],
+        "examined": [49],
+        "whether": [50, 66],
+        "high": [51],
+        "SMU": [52, 56, 115, 120, 135, 160, 168, 197, 208],
+        "intensity": [53, 169, 198],
+        "and": [54, 65, 83, 99, 117, 145, 170, 202],
+        "addiction-like": [55],
+        "problems": [57, 116, 121, 136, 161, 209],
+        "were": [58, 69, 122, 173],
+        "bidirectionally": [59],
+        "associated": [60, 123, 175],
+        "with": [61, 87, 124],
+        "low": [62],
+        "health,": [64],
+        "these": [67, 151],
+        "associations": [68],
+        "mediated": [70],
+        "by": [71, 96],
+        "increased": [72, 139],
+        "levels": [73, 140],
+        "upward": [75, 142],
+        "comparisons,": [77],
+        "cybervictimization,": [78],
+        "decreased": [79, 125, 163],
+        "subjective": [80],
+        "achievements,": [82],
+        "less": [84],
+        "face-to-face": [85],
+        "contact": [86],
+        "friends.": [88],
+        "In": [89],
+        "doing": [90],
+        "so,": [91],
+        "health": [93, 127, 172],
+        "was": [94],
+        "measured": [95],
+        "depressive": [97],
+        "symptoms": [98],
+        "life": [100],
+        "satisfaction.": [101],
+        "Findings": [102, 188],
+        "from": [103],
+        "random": [104],
+        "intercept": [105],
+        "cross-lagged": [106],
+        "panel": [107],
+        "models": [108],
+        "showed": [109],
+        "direct": [111],
+        "unidirectional": [112],
+        "association": [113],
+        "between": [114],
+        "health:": [119],
+        "one": [128, 147],
+        "year": [129, 148],
+        "later,": [130],
+        "but": [131],
+        "not": [132, 154, 174],
+        "vice": [133],
+        "versa.": [134],
+        "also": [137],
+        "predicted": [138],
+        "comparisons": [144],
+        "cybervictimization": [146],
+        "later.": [149],
+        "Yet,": [150],
+        "processes": [152],
+        "did": [153],
+        "mediate": [155],
+        "observed": [157],
+        "effect": [158],
+        "Over": [166],
+        "time,": [167],
+        "in": [176],
+        "any": [177, 184],
+        "direction;": [178],
+        "neither": [179],
+        "directly,": [180],
+        "nor": [181],
+        "indirectly": [182],
+        "through": [183],
+        "mediators.": [187],
+        "our": [190],
+        "suggest": [192],
+        "that": [193],
+        "harmful": [194],
+        "may": [199],
+        "be": [200],
+        "limited": [201],
+        "highlight": [203],
+        "risk": [206],
+        "to": [210],
+        "adolescent": [211]
+      }
+    },
+    "retracted": {
+      "id": "https://openalex.org/W9000000001",
+      "doi": null,
+      "display_name": "Synthetic test work W9000000001",
+      "publication_year": 2021,
+      "type": "article",
+      "is_retracted": true,
+      "is_paratext": false,
+      "cited_by_count": 0,
+      "authorships": [],
+      "primary_location": null,
+      "best_oa_location": null,
+      "primary_topic": null,
+      "topics": [],
+      "abstract_inverted_index": null
+    },
+    "paratext": {
+      "id": "https://openalex.org/W9000000002",
+      "doi": null,
+      "display_name": "Synthetic test work W9000000002",
+      "publication_year": 2021,
+      "type": "paratext",
+      "is_retracted": false,
+      "is_paratext": true,
+      "cited_by_count": 0,
+      "authorships": [],
+      "primary_location": null,
+      "best_oa_location": null,
+      "primary_topic": null,
+      "topics": [],
+      "abstract_inverted_index": null
+    },
+    "untitled": {
+      "id": "https://openalex.org/W9000000003",
+      "doi": null,
+      "display_name": null,
+      "publication_year": 2021,
+      "type": "article",
+      "is_retracted": false,
+      "is_paratext": false,
+      "cited_by_count": 0,
+      "authorships": [],
+      "primary_location": null,
+      "best_oa_location": null,
+      "primary_topic": null,
+      "topics": [],
+      "abstract_inverted_index": null,
+      "title": null
+    },
+    "preprint": {
+      "id": "https://openalex.org/W9000000004",
+      "doi": null,
+      "display_name": "Synthetic test work W9000000004",
+      "publication_year": 2021,
+      "type": "preprint",
+      "is_retracted": false,
+      "is_paratext": false,
+      "cited_by_count": 0,
+      "authorships": [
+        {
+          "author": {
+            "display_name": "Test Author"
+          }
+        },
+        {
+          "author": {
+            "display_name": ""
+          }
+        }
+      ],
+      "primary_location": {
+        "landing_page_url": "https://example.org/preprint/9000000004",
+        "source": {
+          "display_name": "Example Preprint Server",
+          "type": "repository"
+        }
+      },
+      "best_oa_location": {
+        "pdf_url": "https://example.org/preprint/9000000004.pdf"
+      },
+      "primary_topic": {
+        "display_name": "Synthetic Topic"
+      },
+      "topics": [],
+      "abstract_inverted_index": null
+    },
+    "markup": {
+      "id": "https://openalex.org/W9000000005",
+      "doi": "https://doi.org/10.9999/SYNTH.5",
+      "display_name": "  Synthetic <i>in vitro</i> work with CO<sub>2</sub>\n title ",
+      "publication_year": 2021,
+      "type": "article",
+      "is_retracted": false,
+      "is_paratext": false,
+      "cited_by_count": 0,
+      "authorships": [],
+      "primary_location": null,
+      "best_oa_location": null,
+      "primary_topic": null,
+      "topics": [],
+      "abstract_inverted_index": null
+    }
+  }
+}
