@@ -53,13 +53,27 @@ const field = (name: string, value: string) => `  ${name} = ${value},`;
  * Verbatim fields (doi, url) can't be escaped; drop a value whose braces would break the entry
  * or whose % / # break `\url` inside macro arguments.
  */
-const verbatim = (value: string | undefined) =>
-  value && !/[{}\\%#\s]/.test(value) ? `{${value}}` : undefined;
+const urlSafe = (value: string | undefined) =>
+  value && !/[{}\\%#\s]/.test(value) ? value : undefined;
+const verbatim = (value: string | undefined) => {
+  const safe = urlSafe(value);
+  return safe && `{${safe}}`;
+};
+
+/** The paper's DOI in bare form, if it has a valid one. */
+export const paperDoi = (paper: Paper) =>
+  paper.doi ? (normaliseDoi(paper.doi) ?? undefined) : undefined;
+
+/** A link safe to put in `\url{}` (and in every other export): the paper's url, else its DOI. */
+export const paperUrl = (paper: Paper) => {
+  const doi = paperDoi(paper);
+  return urlSafe(paper.url) ?? urlSafe(doi && `https://doi.org/${doi}`);
+};
 
 export function buildEntry(paper: Paper, key: string): string {
   const authors = paper.authors.map((a) => a.name).filter((n) => n.trim());
-  const doi = paper.doi ? (normaliseDoi(paper.doi) ?? undefined) : undefined;
-  const url = verbatim(paper.url) ?? verbatim(doi && `https://doi.org/${doi}`);
+  const doi = paperDoi(paper);
+  const url = verbatim(paperUrl(paper));
   const fields: [string, string | undefined][] = [
     ["author", authors.length ? `{${authors.map(latexName).join(" and ")}}` : undefined],
     ["title", `{${latexTitle(paper.title)}}`],

@@ -94,3 +94,10 @@ export function citeKeys(papers: readonly Paper[]): Map<string, string> {
 /** 1 → "b", 2 → "c", … 24 → "z", 25 → "zb": always letters, so keys stay `[a-z]+`. */
 const suffix = (i: number): string =>
   i <= 24 ? String.fromCharCode(97 + i) : "z" + suffix(i - 24);
+
+/** Unique papers sorted by their cite key: the order every export uses. */
+export function sortByKey(papers: readonly Paper[], keys: Map<string, string>): Paper[] {
+  const unique = [...new Map(papers.map((p) => [p.id, p])).values()];
+  const key = (p: Paper) => keys.get(p.id) ?? "";
+  return unique.sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
+}

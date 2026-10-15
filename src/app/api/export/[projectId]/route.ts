@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { exportRequestSchema, paperSchema, type ApiError } from "@/lib/api-schemas";
+import { exportRequestSchema, type ApiError } from "@/lib/api-schemas";
 import { serverEnv } from "@/lib/env";
-import { asciiFold, bibtexFor } from "@/lib/export";
-import { notImplemented } from "@/lib/http/not-implemented";
+import {
+  asciiFold,
+  bibtexFor,
+  citeKeys,
+  csvExport,
+  latexBibliography,
+  loadSavedLibrary,
+  markdownReadingList,
+} from "@/lib/export";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import type { Paper } from "@/types/domain";
 
 // Owner: export (LB-02 bibtex; LB-03 latex, csv, markdown). Reads go through the user's own
 // client, so RLS limits the export to projects the caller is a member of.
@@ -37,47 +43,54 @@ export async function GET(request: Request, ctx: RouteContext<"/api/export/[proj
     Object.fromEntries(new URL(request.url).searchParams),
   );
   if (!query.success) return error(400, "Invalid export format", z.treeifyError(query.error));
-  if (query.data.format !== "bibtex") return notImplemented("LB-03");
 
-  const { data: project, error: projectError } = await supabase
-    .from("projects")
-    .select("title")
-    .eq("id", projectId)
-    .maybeSingle();
-  if (projectError) {
-    console.error("[export] reading project failed", projectError.code, projectError.message);
-    return error(500, "Couldn't export the library");
+  const loaded = await loadSavedLibrary(supabase, projectId);
+  if (!loaded.ok) {
+    return loaded.reason === "not-found"
+      ? error(404, "Project not found")
+      : error(500, "Couldn't export the library");
   }
-  if (!project) return error(404, "Project not found");
+  const { title, papers, analyses } = loaded.library;
+  const keys = citeKeys(papers);
 
-  // Saved by any member: the project's shared library.
-  const { data: saves, error: savesError } = await supabase
-    .from("swipes")
-    .select("paper_id, papers(data)")
-    .eq("project_id", projectId)
-    .eq("decision", "save");
-  if (savesError) {
-    console.error("[export] reading saves failed", savesError.code, savesError.message);
-    return error(500, "Couldn't export the library");
+  let file: { body: string; ext: string; type: string };
+  switch (query.data.format) {
+    case "bibtex": {
+      const mailto = serverEnv().CROSSREF_MAILTO;
+      const { text } = await bibtexFor(papers, {
+        fetch,
+        signal: request.signal,
+        userAgent: `PaperCut/1.0${mailto ? ` (mailto:${mailto})` : ""}`,
+      });
+      file = { body: text, ext: "bib", type: "application/x-bibtex; charset=utf-8" };
+      break;
+    }
+    case "latex":
+      file = {
+        body: latexBibliography(papers, keys),
+        ext: "tex",
+        type: "application/x-tex; charset=utf-8",
+      };
+      break;
+    case "csv":
+      file = {
+        body: csvExport(papers, keys, analyses),
+        ext: "csv",
+        type: "text/csv; charset=utf-8",
+      };
+      break;
+    case "markdown":
+      file = {
+        body: markdownReadingList(title, papers, keys, analyses),
+        ext: "md",
+        type: "text/markdown; charset=utf-8",
+      };
+      break;
   }
-
-  const papers = new Map<string, Paper>();
-  for (const row of saves) {
-    const parsed = paperSchema.safeParse(row.papers?.data);
-    if (parsed.success) papers.set(parsed.data.id, parsed.data);
-    else console.warn("[export] skipping malformed paper", row.paper_id);
-  }
-
-  const mailto = serverEnv().CROSSREF_MAILTO;
-  const { text } = await bibtexFor([...papers.values()], {
-    fetch,
-    signal: request.signal,
-    userAgent: `PaperCut/1.0${mailto ? ` (mailto:${mailto})` : ""}`,
-  });
-  return new NextResponse(text, {
+  return new NextResponse(file.body, {
     headers: {
-      "content-type": "application/x-bibtex; charset=utf-8",
-      "content-disposition": `attachment; filename="${fileSlug(project.title)}.bib"`,
+      "content-type": file.type,
+      "content-disposition": `attachment; filename="${fileSlug(title)}.${file.ext}"`,
       "cache-control": "private, no-store",
     },
   });
