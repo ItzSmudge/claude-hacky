@@ -45,7 +45,7 @@ const LINK_ICON: Record<PaperLink["kind"], typeof Link2> = {
 
 // Matches DeckControls: grows at 200% text, opaque focus ring with offset.
 const actionClass =
-  "h-auto min-h-12 flex-1 gap-2 rounded-xl py-1.5 text-base whitespace-normal focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background hc:focus-visible:ring-4";
+  "h-auto min-h-12 flex-1 basis-32 gap-2 rounded-xl py-1.5 text-base whitespace-normal focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background hc:focus-visible:ring-4";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -74,16 +74,22 @@ export function DetailSheet({
   open,
   onOpenChange,
   onDecide,
+  onFocusDeck,
 }: {
   item: DeckItem | null;
   claims: ProjectContext["claims"];
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onDecide: (decision: SwipeDecision) => void;
+  /** Returns false when the deck can't take it (busy, or this paper is no longer on top). */
+  onDecide: (paperId: string, decision: SwipeDecision) => boolean;
+  /** Moves focus to the deck (used when there is nothing better to return focus to). */
+  onFocusDeck: () => void;
 }) {
   const isDesktop = useIsDesktop();
-  // Closed by Save/Skip: the deck moves focus itself, so don't restore it to the leaving card.
-  const decided = useRef(false);
+  // Save/Skip waits until the sheet has closed, so the deck's announcement isn't hidden by the
+  // dialog's aria-hidden on the rest of the page.
+  const pending = useRef<{ paperId: string; decision: SwipeDecision } | null>(null);
+  const opener = useRef<Element | null>(null);
 
   if (!item) return null;
   const { paper, analysis, credibility } = item;
@@ -94,9 +100,8 @@ export function DetailSheet({
   const overview = orNotStated(analysis.overview);
 
   function decide(decision: SwipeDecision) {
-    decided.current = true;
+    pending.current = { paperId: paper.id, decision };
     onOpenChange(false);
-    onDecide(decision);
   }
 
   return (
@@ -105,13 +110,29 @@ export function DetailSheet({
         side={isDesktop ? "right" : "bottom"}
         showCloseButton={false}
         onOpenAutoFocus={(event) => {
-          decided.current = false;
-          // Focus the sheet itself so screen readers start at the title, not the first button.
+          pending.current = null;
+          opener.current = document.activeElement;
+          // Focus the scrollable body: arrow keys / PgDn scroll it, and the dialog name is read.
           event.preventDefault();
-          (event.currentTarget as HTMLElement | null)?.focus();
+          (event.currentTarget as HTMLElement | null)
+            ?.querySelector<HTMLElement>("[data-sheet-body]")
+            ?.focus();
         }}
         onCloseAutoFocus={(event) => {
-          if (decided.current) event.preventDefault();
+          const decision = pending.current;
+          pending.current = null;
+          // The deck took it: it focuses its own region (the card is leaving).
+          if (decision && onDecide(decision.paperId, decision.decision)) {
+            event.preventDefault();
+            onFocusDeck();
+            return;
+          }
+          // Opened with ↑ from the page: land in the deck rather than on <body>.
+          const back = opener.current;
+          if (!back || back === document.body || !back.isConnected) {
+            event.preventDefault();
+            onFocusDeck();
+          }
         }}
         className={cn(
           "gap-0 p-0 text-base focus-visible:outline-none motion-reduce:animate-none hc:border-2 hc:border-primary",
@@ -120,33 +141,42 @@ export function DetailSheet({
             : "max-h-[85dvh] rounded-t-2xl pb-[env(safe-area-inset-bottom)]",
         )}
       >
-        <SheetHeader className="gap-3 border-b border-primary/30 px-5 pt-4 pb-4 md:px-6 hc:border-primary">
-          <div className="flex items-start justify-between gap-3">
-            <p className="min-w-0 text-sm text-muted-foreground">
-              <span className="block font-medium break-words text-foreground/80">{meta.venue}</span>
-              <span className="block">{meta.year}</span>
-            </p>
-            <div className="flex shrink-0 items-center gap-1">
-              <CredibilityBadge credibility={credibility} />
-              <SheetClose asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-11 rounded-xl focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <X className="size-5" strokeWidth={1.75} aria-hidden />
-                  <span className="sr-only">Close details</span>
-                </Button>
-              </SheetClose>
-            </div>
-          </div>
-          <SheetTitle className="font-display text-2xl leading-snug font-semibold text-balance text-primary">
-            {paper.title}
-          </SheetTitle>
-          <p className="text-sm text-muted-foreground">{formatAuthorList(paper.authors)}</p>
-        </SheetHeader>
+        <SheetClose asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-2 right-2 z-10 size-11 rounded-xl bg-popover shadow-paper focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-popover hc:border-2 hc:border-primary"
+          >
+            <X className="size-5" strokeWidth={1.75} aria-hidden />
+            <span className="sr-only">Close details</span>
+          </Button>
+        </SheetClose>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain px-5 py-5 md:px-6">
+        {/* Everything but the action bar scrolls, so Save/Skip stay reachable at 200% text. */}
+        <div
+          data-sheet-body
+          tabIndex={0}
+          role="region"
+          aria-label="Paper details"
+          className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain px-5 pb-5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset md:px-6"
+        >
+          <SheetHeader className="-mx-5 gap-3 border-b border-primary/30 px-5 pt-4 pb-4 md:-mx-6 md:px-6 hc:border-primary">
+            <SheetTitle className="font-display text-2xl leading-snug font-semibold text-balance text-primary">
+              {paper.title}
+            </SheetTitle>
+            {/* Title first for screen readers; meta shown above it. Right padding clears the close button. */}
+            <div className="order-first flex flex-wrap items-start justify-between gap-x-3 gap-y-2 pr-12">
+              <p className="min-w-0 text-sm text-muted-foreground">
+                <span className="block font-medium break-words text-foreground/80">
+                  {meta.venue}
+                </span>
+                <span className="block">{meta.year}</span>
+              </p>
+              <CredibilityBadge credibility={credibility} />
+            </div>
+            <p className="text-sm text-muted-foreground">{formatAuthorList(paper.authors)}</p>
+          </SheetHeader>
+
           <SheetDescription asChild>
             <p className="rounded-xl bg-highlight px-3 py-2 text-base font-medium text-highlight-foreground hc:border-2 hc:border-primary">
               {whyItMatters ? (
@@ -219,7 +249,7 @@ export function DetailSheet({
                         href={link.href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex min-h-11 items-center gap-2 rounded-xl px-1 font-medium break-all text-primary underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                        className="inline-flex min-h-11 items-center gap-2 rounded-xl px-1 font-medium break-all text-primary underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-popover focus-visible:outline-none"
                       >
                         <Icon className="size-5 shrink-0" strokeWidth={1.75} aria-hidden />
                         {link.kind === "doi" ? (
@@ -239,7 +269,7 @@ export function DetailSheet({
           )}
         </div>
 
-        <SheetFooter className="flex-row gap-3 border-t border-border bg-popover px-5 py-3 md:px-6 hc:border-primary">
+        <SheetFooter className="flex-row flex-wrap gap-3 border-t border-border bg-popover px-5 py-3 md:px-6 hc:border-primary">
           <Button variant="outline" className={actionClass} onClick={() => decide("skip")}>
             <X className="size-5 text-challenges" strokeWidth={1.75} aria-hidden />
             Skip

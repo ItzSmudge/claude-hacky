@@ -44,7 +44,10 @@ import { PaperCard } from "./paper-card";
 
 /** Lets a parent (the detail sheet) decide the top card through the deck's own exit path. */
 export interface SwipeDeckHandle {
-  decide: (decision: SwipeDecision) => void;
+  /** Commits only if `paperId` is still the top card and the deck is idle; returns whether it did. */
+  decide: (paperId: string, decision: SwipeDecision) => boolean;
+  /** Focuses the deck region (e.g. after a sheet closes with nowhere better to return to). */
+  focus: () => void;
 }
 
 export interface DeckItem {
@@ -218,9 +221,12 @@ export function SwipeDeck({
   }
 
   useImperativeHandle(ref, () => ({
-    decide: (decision) => {
-      if (canCommit()) void commit(decision, 0, true);
+    decide: (paperId, decision) => {
+      if (!canCommit() || topId !== paperId) return false;
+      void commit(decision, 0, true);
+      return true;
     },
+    focus: () => regionRef.current?.focus(),
   }));
 
   function undo() {
@@ -238,7 +244,8 @@ export function SwipeDeck({
   }
 
   function details() {
-    if (topId) safely(onDetails, topId);
+    // Not while a card is leaving: the sheet would open for the departing paper.
+    if (topId && !busy.current) safely(onDetails, topId);
   }
 
   function startDrag(event: ReactPointerEvent) {
@@ -289,7 +296,7 @@ export function SwipeDeck({
         void commit(event.key === "ArrowRight" ? "save" : "skip");
         break;
       case "ArrowUp":
-        if (!onDetails || !top) return;
+        if (!onDetails || !top || busy.current) return;
         event.preventDefault();
         details();
         break;

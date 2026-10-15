@@ -45,6 +45,7 @@ describe("normaliseDoi", () => {
     ["DOI: 10.1000/xyz", "10.1000/xyz"],
     ["https://doi.org/10.1000/xyz", "10.1000/xyz"],
     ["http://dx.doi.org/10.1000/xyz", "10.1000/xyz"],
+    ["https://www.doi.org/10.1000/xyz", "10.1000/xyz"],
   ])("%s → %s", (input, expected) => {
     expect(normaliseDoi(input)).toBe(expected);
   });
@@ -80,6 +81,23 @@ describe("paperLinks", () => {
       { kind: "doi", label: "10.1000/xyz", href: "https://doi.org/10.1000/xyz" },
       { kind: "pdf", label: "PDF", href: "https://example.org/paper.pdf" },
     ]);
+  });
+
+  it("encodes DOIs with reserved characters", () => {
+    expect(
+      paperLinks(paper({ doi: "10.1002/(SICI)1097-4571(199806)49:8<693::AID-ASI4>3.0.CO;2-#" }))[0]
+        ?.href,
+    ).toBe(
+      "https://doi.org/10.1002/(SICI)1097-4571(199806)49%3A8%3C693%3A%3AAID-ASI4%3E3.0.CO%3B2-%23",
+    );
+  });
+
+  it("keeps a PDF whose path differs only by case", () => {
+    expect(
+      paperLinks(
+        paper({ url: "https://example.org/paper.pdf", pdfUrl: "https://example.org/Paper.pdf" }),
+      ),
+    ).toHaveLength(2);
   });
 
   it("drops unsafe and relative URLs", () => {

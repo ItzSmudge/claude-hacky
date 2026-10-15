@@ -136,7 +136,8 @@ export function PersistedSwipeDeck({
         claims={claims}
         open={details?.open ?? false}
         onOpenChange={(open) => setDetails((d) => (d ? { ...d, open } : d))}
-        onDecide={(decision) => deck.current?.decide(decision)}
+        onDecide={(paperId, decision) => deck.current?.decide(paperId, decision) ?? false}
+        onFocusDeck={() => deck.current?.focus()}
       />
     </>
   );

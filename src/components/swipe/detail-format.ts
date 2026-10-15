@@ -10,7 +10,7 @@ export function formatAuthorList(authors: Paper["authors"], max = 8): string {
   return `${names.slice(0, max).join(", ")} and ${names.length - max} more`;
 }
 
-const DOI_PREFIX = /^(?:doi:\s*|https?:\/\/(?:dx\.)?doi\.org\/)/i;
+const DOI_PREFIX = /^(?:doi:\s*|https?:\/\/(?:dx\.|www\.)?doi\.org\/)/i;
 
 /** Bare DOI ("10.x/…") from any common spelling, or undefined if it isn't one. */
 export function normaliseDoi(doi: string | undefined): string | undefined {
@@ -35,21 +35,25 @@ export interface PaperLink {
   href: string;
 }
 
-const sameLink = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+/** DOI link with each path segment encoded, so "#", "?" or "%" in old DOIs don't break it. */
+const doiLink = (doi: string) =>
+  `https://doi.org/${doi.split("/").map(encodeURIComponent).join("/")}`;
 
 /** Landing page, DOI and PDF links — deduplicated, http(s) only. */
 export function paperLinks(paper: Paper): PaperLink[] {
   const doi = normaliseDoi(paper.doi);
-  const doiHref = doi ? `https://doi.org/${doi}` : undefined;
+  const doiHref = doi ? doiLink(doi) : undefined;
   const page = safeUrl(paper.url);
   const pdf = safeUrl(paper.pdfUrl);
 
   const links: PaperLink[] = [];
-  if (page && !(doiHref && sameLink(page, doiHref))) {
+  // DOIs are case-insensitive; other URL paths are not.
+  const isDoiPage = doi !== undefined && normaliseDoi(page)?.toLowerCase() === doi.toLowerCase();
+  if (page && !isDoiPage) {
     links.push({ kind: "page", label: "Open paper", href: page });
   }
   if (doi && doiHref) links.push({ kind: "doi", label: doi, href: doiHref });
-  if (pdf && !links.some((l) => sameLink(l.href, pdf))) {
+  if (pdf && !links.some((l) => l.href === pdf)) {
     links.push({ kind: "pdf", label: "PDF", href: pdf });
   }
   return links;
