@@ -18,6 +18,7 @@ import {
   useReducer,
   useRef,
   useState,
+  type FocusEvent as ReactFocusEvent,
   type PointerEvent as ReactPointerEvent,
   type Ref,
 } from "react";
@@ -129,6 +130,7 @@ export function SwipeDeck({
 
   const cardRef = useRef<HTMLDivElement>(null);
   const regionRef = useRef<HTMLDivElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
   const deckRef = useRef(deck);
   const busy = useRef(false);
@@ -194,6 +196,7 @@ export function SwipeDeck({
   async function commit(decision: SwipeDecision, velocity = 0, focusDeck = false) {
     if (!top || busy.current) return;
     busy.current = true;
+    if (!reduceMotion) haptic();
     const paper = top.paper;
     const active = document.activeElement;
     // Keep keyboard focus: the card is leaving, or this button is about to be disabled (last card).
@@ -226,7 +229,6 @@ export function SwipeDeck({
       `${decision === "save" ? "Saved" : "Skipped"}: ${paper.title}. ${left - 1} left.`,
     );
     if (moveFocus) regionRef.current?.focus();
-    haptic();
     safely(onDecide, paper.id, decision);
   }
 
@@ -239,6 +241,14 @@ export function SwipeDeck({
     focus: () => regionRef.current?.focus(),
   }));
 
+  // WCAG 2.4.11: browsers don't scroll a focused control that's "visible" but under the sticky bar.
+  function revealAboveBar(event: ReactFocusEvent<HTMLElement>) {
+    const bar = barRef.current?.getBoundingClientRect();
+    if (!bar) return;
+    const overlap = event.target.getBoundingClientRect().bottom + 8 - bar.top;
+    if (overlap > 0) window.scrollBy({ top: overlap, behavior: reduceMotion ? "auto" : "smooth" });
+  }
+
   function undo() {
     if (busy.current) return;
     const last = lastDecision(deck);
@@ -250,7 +260,7 @@ export function SwipeDeck({
     }
     dispatch({ type: "undo" });
     setAnnouncement(`Restored: ${deck.known[last.paperId]?.paper.title ?? "paper"}.`);
-    haptic();
+    if (!reduceMotion) haptic();
     safely(onUndo, last.paperId, last.decision);
   }
 
@@ -339,7 +349,8 @@ export function SwipeDeck({
         role="group"
         tabIndex={-1}
         aria-label={top ? `Paper ${deck.cursor + 1} of ${total}` : "No papers left"}
-        className="grid overscroll-x-contain rounded-2xl *:[grid-area:1/1] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+        onFocus={revealAboveBar}
+        className="grid rounded-2xl *:[grid-area:1/1] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
       >
         {stack.map((item, i) => {
           const depth = stack.length - i;
@@ -380,7 +391,7 @@ export function SwipeDeck({
               }}
               onDragEnd={endDrag}
               style={{ x, y, rotate, opacity, touchAction: "pan-y" }}
-              className="relative cursor-grab select-none [-webkit-tap-highlight-color:transparent] active:cursor-grabbing"
+              className="relative cursor-grab select-none active:cursor-grabbing"
             >
               <PaperCard {...top} claims={claims} onDetails={onDetails ? details : undefined} />
               <motion.span
@@ -422,8 +433,12 @@ export function SwipeDeck({
       </div>
 
       {/* Sticky so the buttons are on screen without scrolling on phones and short screens — the
-          only input with reduced motion. Last in the deck, so at the end it rests in normal flow. */}
-      <div className="sticky bottom-0 z-10 -mx-4 border-t border-border bg-background/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-paper backdrop-blur-sm md:mx-0 md:rounded-2xl md:border md:px-3">
+          only input with reduced motion. Last in the deck, so at the end it rests in normal flow.
+          safe-area padding takes effect once the root viewport opts into viewport-fit=cover. */}
+      <div
+        ref={barRef}
+        className="sticky bottom-0 z-10 -mx-4 border-t border-border bg-background/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-sm sm:mx-0 sm:rounded-2xl sm:border sm:px-3 hc:border-t-2 hc:bg-background hc:backdrop-blur-none sm:hc:border-2 [@media(max-height:480px)]:pt-1.5 [@media(max-height:480px)]:pb-[max(0.375rem,env(safe-area-inset-bottom))]"
+      >
         <DeckControls
           onSkip={() => canCommit() && void commit("skip")}
           onUndo={undo}

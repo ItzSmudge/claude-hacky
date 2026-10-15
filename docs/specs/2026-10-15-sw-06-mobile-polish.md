@@ -15,19 +15,18 @@ The credibility badge's tap area is about 42px. The stance chips are already 44p
 
 ## Changes (`src/components/swipe`, deck page)
 
-1. **Sticky control bar below `md`.** `DeckControls` sits in a `sticky bottom-0` bar with these styles:
-   - full bleed (`-mx-4 px-4`)
-   - `bg-background/95`, a top border and a warm paper shadow
-   - bottom padding of `max(0.75rem, env(safe-area-inset-bottom))` for the iPhone home bar
+1. **Sticky control bar at every width.** `DeckControls` sits in a `sticky bottom-0` bar with these styles:
+   - full bleed (`-mx-4 px-4`) below `sm`; a rounded, bordered bar the width of the card from `sm`
+   - `bg-background/95` with a light blur and a top border; fully opaque with 2px borders in `.hc`
+   - bottom padding of `max(0.75rem, env(safe-area-inset-bottom))` for the iPhone home bar (takes effect once the root viewport sets `viewport-fit=cover`)
+   - tighter padding when the viewport is under 480px tall (landscape, 400% zoom)
+   - focus is never hidden under it: when a card control is focused under the bar, the page scrolls it above the bar (WCAG 2.4.11)
 
-   It is the last element in the deck, so at the end of the page it rests in normal flow and never covers content. From `md` up it is static, as now. With reduced motion this is the fallback: the buttons are always visible.
+   It is the last element in the deck, so at the end of the page it rests in normal flow and never covers content. It stays sticky on wide screens too (a 844×390 landscape phone is wider than `md`). With reduced motion this is the fallback: the buttons are always visible.
 
 2. **Compact page title on phones.** `text-2xl` below `md`, `text-3xl` from `md`, to give the card more height.
-3. **Haptics.** A short `navigator.vibrate(10)` when a card is saved or skipped and on undo, where supported (Android Chrome; iOS ignores it). It's wrapped in a try, and nothing else depends on it.
-4. **Touch feel.**
-   - The card has no grey tap flash (`-webkit-tap-highlight-color: transparent`).
-   - The deck area uses `overscroll-behavior-x: contain` so a fling doesn't trigger the browser's back/forward swipe.
-5. **Tap targets.** The credibility badge's hit area grows to at least 44px (`after:-inset-2.5`).
+3. **Haptics.** A short `navigator.vibrate(10)` as a card starts to leave (save or skip) and on undo, where supported (Android Chrome; iOS ignores it). Skipped with reduced motion. It's wrapped in a try, and nothing else depends on it.
+4. **Tap targets.** The credibility badge's hit area grows to at least 44px (`after:-inset-2.5`).
 
 ## Out of scope
 
