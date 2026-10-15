@@ -15,7 +15,7 @@
 - [x] F-08 Directory skeleton + `domain.ts` + `api-schemas.ts`
 - [x] F-09 `fixtures/papers.json` (20 real OpenAlex papers + analyses)
 - [x] F-10 Supabase local config + migration + seed + types + anon auth + `write-local-env.mjs`
-- [ ] F-11 Hosted Supabase + Vercel (main only) + domains + Cloudflare script + prod smoke test (ItzSmudge)
+- [x] F-11 Hosted Supabase + Vercel (main only) + prod smoke test — live at https://papercut-ten.vercel.app. Custom domain + Cloudflare deferred (see docs/README.md → Production)
 - [x] F-12 `.claude/` settings, skills (incl. design-system from §2b), agents, `.worktreeinclude`, `wt.sh`, CLAUDE.md
 - [x] F-13 Placeholder pages for every route
 - [x] F-14 Design tokens, fonts, dark-mode toggle, themed primitives, `/app/_styleguide`
