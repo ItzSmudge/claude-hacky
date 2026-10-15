@@ -35,12 +35,20 @@ const UNKNOWN_RECENCY_POINTS = 5;
 // Superset of the ranking venue guess (src/lib/ranking/features.ts), so the two agree.
 const PREPRINT_VENUE = /\b(arxiv|biorxiv|medrxiv|psyarxiv|ssrn|research square|osf|preprints?)\b/i;
 const CONFERENCE_VENUE = /\b(conference|proceedings|symposium|workshop|annual meeting)\b/i;
+// Journals whose names start like proceedings (PNAS, Proc. R. Soc., Proc. IEEE).
+const PROCEEDINGS_JOURNAL =
+  /\bproceedings of the (national academy|royal society|ieee\b(?! [\w ]*conference))/i;
 const BOOK_VENUE = /\b(e?books?|chapter|handbook)\b/i;
 
-/** Venue type from the venue name, else "journal" for peer-reviewed work; undefined if unknown. */
+/**
+ * Venue type from the venue name, else "journal" for peer-reviewed work; undefined if unknown.
+ * `Paper` carries no source type, so a conference named without a keyword (e.g. "Neural
+ * Information Processing Systems") falls through to "journal".
+ */
 export function venueTypeOf(paper: Paper): VenueType | undefined {
   const venue = paper.venue ?? "";
   if (PREPRINT_VENUE.test(venue)) return "preprint";
+  if (PROCEEDINGS_JOURNAL.test(venue)) return "journal";
   if (CONFERENCE_VENUE.test(venue)) return "conference";
   if (BOOK_VENUE.test(venue)) return "book";
   return paper.isPeerReviewed ? "journal" : undefined;

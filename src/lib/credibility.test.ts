@@ -132,6 +132,19 @@ describe("venueTypeOf", () => {
     expect(venueTypeOf(paper({ venue: "Elsevier eBooks" }))).toBe("book");
   });
 
+  it("keeps journals named 'Proceedings of …' as journals", () => {
+    for (const venue of [
+      "Proceedings of the National Academy of Sciences",
+      "Proceedings of the Royal Society B Biological Sciences",
+      "Proceedings of the IEEE",
+    ]) {
+      expect(venueTypeOf(paper({ venue, isPeerReviewed: true })), venue).toBe("journal");
+    }
+    expect(
+      venueTypeOf(paper({ venue: "Proceedings of the IEEE International Conference on Robotics" })),
+    ).toBe("conference");
+  });
+
   it("treats other peer-reviewed venues as journals and leaves the rest unknown", () => {
     expect(venueTypeOf(paper({ venue: "BMC Public Health", isPeerReviewed: true }))).toBe(
       "journal",
