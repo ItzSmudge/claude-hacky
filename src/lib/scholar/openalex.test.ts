@@ -85,6 +85,30 @@ describe("workToPaper", () => {
     expect(paper.isPeerReviewed).toBe(false);
   });
 
+  it("keeps a bare < in titles", () => {
+    const paper = workToPaper({ ...works.markup!, display_name: "Effects at p < 0.05 vs q > 1" })!;
+    expect(paper.title).toBe("Effects at p < 0.05 vs q > 1");
+  });
+
+  it("encodes DOIs in the url but not in doi", () => {
+    const doi = "https://doi.org/10.1002/(SICI)1097-4571(199806)49:8<693::AID-ASI4>3.0.CO;2-#";
+    const paper = workToPaper({ ...works.markup!, doi })!;
+    expect(paper.doi).toBe("10.1002/(sici)1097-4571(199806)49:8<693::aid-asi4>3.0.co;2-#");
+    expect(paper.url).toBe(
+      "https://doi.org/10.1002/(sici)1097-4571(199806)49%3A8%3C693%3A%3Aaid-asi4%3E3.0.co%3B2-%23",
+    );
+  });
+
+  it("only passes through http(s) links", () => {
+    const paper = workToPaper({
+      ...works.preprint!,
+      primary_location: { landing_page_url: "javascript:alert(1)" },
+      best_oa_location: { pdf_url: "data:text/html,x" },
+    })!;
+    expect(paper.url).toBe("https://openalex.org/W9000000004");
+    expect(paper.pdfUrl).toBeUndefined();
+  });
+
   it("falls back to the OpenAlex page for url", () => {
     const bare = workToPaper({ ...works.markup!, doi: null })!;
     expect(bare.url).toBe("https://openalex.org/W9000000005");
@@ -135,6 +159,7 @@ describe("searchOpenAlex", () => {
     [{ yearFrom: 2015, yearTo: 2020 }, "publication_year:2015-2020"],
     [{ yearFrom: 2015 }, "publication_year:>2014"],
     [{ yearTo: 2020 }, "publication_year:<2021"],
+    [{ yearFrom: 2020, yearTo: 2015 }, "publication_year:2015-2020"],
   ])("filters years %j", async (years, filter) => {
     const fetch = vi.fn(async () => body([]));
     await searchOpenAlex({ q: "x", ...years }, { fetch, mailto: undefined, sleep });
@@ -150,6 +175,51 @@ describe("searchOpenAlex", () => {
     expect(res.nextPage).toBe(2);
     const last = await searchOpenAlex({ q: "x", page: 3, perPage: 20 }, { fetch, sleep });
     expect(last.nextPage).toBeNull();
+  });
+
+  it("stops paging at OpenAlex's 10,000-result limit", async () => {
+    const fetch = vi.fn(async () => body([], 50_000));
+    expect(
+      (await searchOpenAlex({ q: "x", page: 199, perPage: 50 }, { fetch, sleep })).nextPage,
+    ).toBe(200);
+    expect(
+      (await searchOpenAlex({ q: "x", page: 200, perPage: 50 }, { fetch, sleep })).nextPage,
+    ).toBeNull();
+  });
+
+  it("rejects an empty query without calling OpenAlex", async () => {
+    const fetch = vi.fn(async () => body([]));
+    await expect(searchOpenAlex({ q: "  " }, { fetch, sleep })).rejects.toMatchObject({
+      status: 400,
+      retryable: false,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("retries when reading the body fails", async () => {
+    const broken = new Response(
+      new ReadableStream({
+        start(c) {
+          c.error(new Error("socket hang up"));
+        },
+      }),
+      { status: 200 },
+    );
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(broken)
+      .mockResolvedValueOnce(body([works.real!]));
+    expect((await searchOpenAlex({ q: "x" }, { fetch, sleep })).papers).toHaveLength(1);
+  });
+
+  it("stops retrying when the caller aborts during backoff", async () => {
+    const controller = new AbortController();
+    const fetch = vi.fn(async () => status(503));
+    const abortingSleep = vi.fn(async () => controller.abort());
+    await expect(
+      searchOpenAlex({ q: "x" }, { fetch, sleep: abortingSleep, signal: controller.signal }),
+    ).rejects.toMatchObject({ retryable: false });
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it("returns an empty page", async () => {
@@ -170,7 +240,7 @@ describe("searchOpenAlex", () => {
     const res = await searchOpenAlex({ q: "x" }, { fetch, sleep });
     expect(res.papers).toHaveLength(1);
     expect(fetch).toHaveBeenCalledTimes(2);
-    expect(sleep).toHaveBeenCalledWith(2000);
+    expect(sleep.mock.calls[0]![0]).toBe(2000);
   });
 
   it("gives up after 2 retries with a retryable OpenAlexError", async () => {
@@ -180,7 +250,7 @@ describe("searchOpenAlex", () => {
     expect(err).toBeInstanceOf(OpenAlexError);
     expect(err).toMatchObject({ status: 503, retryable: true });
     expect(fetch).toHaveBeenCalledTimes(3);
-    expect(sleep.mock.calls).toEqual([[500], [1500]]);
+    expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([500, 1500]);
   });
 
   it("does not retry a 400", async () => {

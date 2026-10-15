@@ -13,7 +13,11 @@ const MAX_PER_PAGE = 50;
 const MAX_TOPICS = 3;
 const TIMEOUT_MS = 8_000;
 const BACKOFF_MS = [500, 1_500];
+// OpenAlex basic paging stops at 10k results; past that it answers 400.
+const MAX_RESULTS = 10_000;
 const MAX_RETRY_AFTER_MS = 5_000;
+// Markup OpenAlex leaves in titles. A bare "<" (as in "p < 0.05") is kept.
+const TITLE_MARKUP = /<\/?(?:i|b|em|strong|sub|sup|scp|span|p|br|mml:[\w-]+)\b[^>]*>/gi;
 const PEER_REVIEWED_TYPES = new Set(["article", "review"]);
 const SELECT = [
   "id",
@@ -73,18 +77,29 @@ export function abstractFromInvertedIndex(
   index: Record<string, number[]> | null | undefined,
 ): string | undefined {
   if (!index) return undefined;
-  const words: string[] = [];
+  const placed: [number, string][] = [];
   for (const [word, positions] of Object.entries(index)) {
-    for (const at of positions) if (Number.isInteger(at) && at >= 0) words[at] = word;
+    for (const at of positions) if (Number.isInteger(at) && at >= 0) placed.push([at, word]);
   }
-  // Sparse array: join skips holes once filtered.
-  return nonEmpty(words.filter((w) => w !== undefined).join(" "));
+  placed.sort((a, b) => a[0] - b[0]);
+  return nonEmpty(placed.map(([, word]) => word).join(" "));
+}
+
+/** Only http(s) links reach the UI as hrefs. */
+function httpUrl(value: string | null | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** OpenAlex work → our Paper, or null when the work shouldn't reach the deck. */
 export function workToPaper(work: OpenAlexWork): Paper | null {
   const externalId = work.id?.match(/^https:\/\/openalex\.org\/(W\d+)$/)?.[1];
-  const title = nonEmpty((work.display_name ?? work.title)?.replace(/<[^>]*>/g, ""));
+  const title = nonEmpty((work.display_name ?? work.title)?.replace(TITLE_MARKUP, ""));
   if (!externalId || !title || work.is_retracted || work.is_paratext) return null;
 
   const doi = work.doi ? normaliseDoi(work.doi)?.toLowerCase() : undefined;
@@ -105,14 +120,14 @@ export function workToPaper(work: OpenAlexWork): Paper | null {
       .filter((name): name is string => !!name)
       .map((name) => ({ name })),
     url: doi
-      ? `https://doi.org/${doi}`
-      : (nonEmpty(work.primary_location?.landing_page_url) ?? `https://openalex.org/${externalId}`),
+      ? `https://doi.org/${doi.split("/").map(encodeURIComponent).join("/")}`
+      : (httpUrl(work.primary_location?.landing_page_url) ?? `https://openalex.org/${externalId}`),
     isPeerReviewed: PEER_REVIEWED_TYPES.has(work.type ?? "") && source?.type === "journal",
     topics: topics.length ? topics : primaryTopic ? [primaryTopic] : [],
   };
   const abstract = abstractFromInvertedIndex(work.abstract_inverted_index);
   const venue = nonEmpty(source?.display_name);
-  const pdfUrl = nonEmpty(work.best_oa_location?.pdf_url);
+  const pdfUrl = httpUrl(work.best_oa_location?.pdf_url);
   if (doi) paper.doi = doi;
   if (abstract) paper.abstract = abstract;
   if (Number.isInteger(work.publication_year)) paper.year = work.publication_year!;
@@ -136,8 +151,12 @@ export interface OpenAlexDeps {
   fetch?: Fetch;
   /** Joins OpenAlex's polite pool; the scholar barrel fills it from env. */
   mailto?: string;
+  /**
+   * Worst case without one is ~34 s (3 × 8 s timeout + backoff), so callers serving a person
+   * (SE-05) should pass a deadline signal.
+   */
   signal?: AbortSignal;
-  sleep?: (ms: number) => Promise<void>;
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
 }
 
 export interface OpenAlexSearchResult {
@@ -152,6 +171,7 @@ const responseSchema = z.object({
 });
 
 function yearFilter(from?: number, to?: number) {
+  if (from !== undefined && to !== undefined && from > to) [from, to] = [to, from];
   if (from !== undefined && to !== undefined) return `publication_year:${from}-${to}`;
   if (from !== undefined) return `publication_year:>${from - 1}`;
   if (to !== undefined) return `publication_year:<${to + 1}`;
@@ -165,12 +185,26 @@ function retryAfterMs(res: Response): number | undefined {
     : undefined;
 }
 
-const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+/** Resolves after `ms`, or as soon as `signal` aborts (the loop then re-checks it). */
+function defaultSleep(ms: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", done);
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    signal?.addEventListener("abort", done, { once: true });
+  });
+}
+
+const aborted = () => new OpenAlexError("OpenAlex request aborted", 0, false);
 
 export async function searchOpenAlex(
   params: OpenAlexSearchParams,
   { fetch = globalThis.fetch, mailto, signal, sleep = defaultSleep }: OpenAlexDeps = {},
 ): Promise<OpenAlexSearchResult> {
+  if (!params.q.trim()) throw new OpenAlexError("Search query is empty", 400, false);
   const page = Math.max(1, Math.trunc(params.page ?? 1));
   const perPage = Math.min(MAX_PER_PAGE, Math.max(1, Math.trunc(params.perPage ?? 20)));
   const url = new URL(API);
@@ -185,8 +219,11 @@ export async function searchOpenAlex(
   let last = new OpenAlexError("OpenAlex request failed", 0, true);
   let retryAfter: number | undefined;
   for (let attempt = 0; attempt <= BACKOFF_MS.length; attempt++) {
-    if (signal?.aborted) throw new OpenAlexError("OpenAlex request aborted", 0, false);
-    if (attempt > 0) await sleep(retryAfter ?? BACKOFF_MS[attempt - 1]!);
+    if (signal?.aborted) throw aborted();
+    if (attempt > 0) {
+      await sleep(retryAfter ?? BACKOFF_MS[attempt - 1]!, signal);
+      if (signal?.aborted) throw aborted();
+    }
 
     let res: Response;
     try {
@@ -196,7 +233,7 @@ export async function searchOpenAlex(
         signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
       });
     } catch {
-      if (signal?.aborted) throw new OpenAlexError("OpenAlex request aborted", 0, false);
+      if (signal?.aborted) throw aborted();
       last = new OpenAlexError("OpenAlex unreachable", 0, true);
       retryAfter = undefined;
       continue;
@@ -205,19 +242,34 @@ export async function searchOpenAlex(
     if (res.status === 429 || res.status >= 500) {
       last = new OpenAlexError(`OpenAlex responded ${res.status}`, res.status, true);
       retryAfter = retryAfterMs(res);
+      await res.body?.cancel().catch(() => {});
       continue;
     }
     if (!res.ok) throw new OpenAlexError(`OpenAlex responded ${res.status}`, res.status, false);
 
-    const parsed = responseSchema.safeParse(await res.json().catch(() => null));
-    if (!parsed.success) throw new OpenAlexError("OpenAlex returned a malformed body", 200, false);
+    let text: string;
+    try {
+      text = await res.text();
+    } catch {
+      // The timeout also covers reading the body.
+      if (signal?.aborted) throw aborted();
+      last = new OpenAlexError("OpenAlex body read failed", 0, true);
+      retryAfter = undefined;
+      continue;
+    }
+    let json: unknown = null;
+    try {
+      json = JSON.parse(text);
+    } catch {}
+    const parsed = responseSchema.safeParse(json);
+    if (!parsed.success) throw new OpenAlexError("OpenAlex returned a malformed body", 502, false);
     const { meta, results } = parsed.data;
     return {
       papers: results
         .map((work) => workToPaper(work as OpenAlexWork))
         .filter((p): p is Paper => !!p),
       total: meta.count,
-      nextPage: page * perPage < meta.count ? page + 1 : null,
+      nextPage: page * perPage < Math.min(meta.count, MAX_RESULTS) ? page + 1 : null,
     };
   }
   throw last;
