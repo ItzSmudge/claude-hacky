@@ -8,7 +8,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 type Ctx = RouteContext<"/api/projects/[projectId]/swipes">;
 
 const projectIdSchema = z.uuid();
-const deleteQuerySchema = swipeRequestSchema.pick({ paperId: true });
+const deleteQuerySchema = z.object({ paperId: swipeRequestSchema.shape.paperId.min(1) });
 
 const error = (status: number, message: string, details?: unknown) =>
   NextResponse.json<ApiError>(

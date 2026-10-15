@@ -36,6 +36,10 @@ const shorten = (title: string) =>
 /** Write queue for one project; failures become toasts with a Retry action. */
 function createPersistence(projectId: string, titleOf: (paperId: string) => string | undefined) {
   let warnedSignedOut = false;
+  // Latest op per paper: Retry on an older toast must never overwrite a newer decision.
+  const latest = new Map<string, SwipeOp>();
+  const toastId = (paperId: string) => `swipe-${paperId}`;
+
   const queue = createSwipeSync({
     send: (op) => sendSwipe(projectId, op),
     onFailure: (op, reason) => {
@@ -50,12 +54,22 @@ function createPersistence(projectId: string, titleOf: (paperId: string) => stri
       const verb = op.decision === null ? "undo your swipe on" : "save your swipe on";
       toast.error(`Couldn't ${verb} ${what}.`, {
         // One toast per paper: a later failure replaces the earlier one.
-        id: `swipe-${op.paperId}`,
-        action: { label: "Retry", onClick: () => queue.enqueue(op) },
+        id: toastId(op.paperId),
+        action: {
+          label: "Retry",
+          onClick: () => {
+            if (latest.get(op.paperId) === op) queue.enqueue(op);
+          },
+        },
       });
     },
   });
-  return queue;
+
+  return (op: SwipeOp) => {
+    latest.set(op.paperId, op);
+    toast.dismiss(toastId(op.paperId));
+    queue.enqueue(op);
+  };
 }
 
 /**
@@ -80,10 +94,10 @@ export function PersistedSwipeDeck({
   }, [items]);
 
   // Created on first swipe (event handlers only), one per mounted deck.
-  const persistence = useRef<ReturnType<typeof createPersistence> | null>(null);
+  const persist = useRef<ReturnType<typeof createPersistence> | null>(null);
   const enqueue = (op: SwipeOp) => {
-    persistence.current ??= createPersistence(projectId, (id) => titles.current.get(id));
-    persistence.current.enqueue(op);
+    persist.current ??= createPersistence(projectId, (id) => titles.current.get(id));
+    persist.current(op);
   };
 
   return (
