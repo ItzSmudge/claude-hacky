@@ -34,7 +34,8 @@ export const asciiFold = (text: string) =>
     .replace(/[øØæÆœŒßłŁđĐðÐþÞı]/g, (ch) => SPECIAL_LETTERS[ch] ?? ch);
 
 /** OpenAlex titles can carry markup such as `<i>E. coli</i>`; keep the text only. */
-export const stripTags = (text: string) => text.replace(/<[^>]*>/g, "");
+export const stripTags = (text: string) =>
+  text.replace(/<\/?[A-Za-z][\w:-]*(?:\s[^<>]*)?\/?>/g, "");
 
 const SUFFIXES = new Set(["jr", "sr", "ii", "iii", "iv"]);
 

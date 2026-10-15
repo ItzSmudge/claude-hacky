@@ -124,6 +124,8 @@ function skipQuoted(text: string, start: number): number {
   return -1;
 }
 
+const LINKING_FIELDS = new Set(["crossref", "xdata", "related", "ids", "xref"]);
+
 /** Parses exactly one `@type{key, name = value, … }` entry; null for anything else. */
 function parseEntry(text: string): { type: string; fields: [string, string][] } | null {
   const head = /^\s*@([A-Za-z]+)\s*\{\s*[^,\s{}]*\s*,/.exec(text);
@@ -151,7 +153,10 @@ function parseEntry(text: string): { type: string; fields: [string, string][] } 
     else if (text[i] === '"') i = skipQuoted(text, i);
     else i += /^[\w.:-]+/.exec(text.slice(i))?.[0].length ?? 0;
     if (i <= start) return null;
-    fields.push([name.toLowerCase(), text.slice(start, i)]);
+    // Cross-reference fields would pull fields in from other entries in the user's file.
+    if (!LINKING_FIELDS.has(name.toLowerCase())) {
+      fields.push([name.toLowerCase(), text.slice(start, i)]);
+    }
     ws();
     if (text[i] === ",") i++;
     else if (text[i] !== "}") return null; // e.g. `#` concatenation
@@ -166,7 +171,8 @@ function parseEntry(text: string): { type: string; fields: [string, string][] } 
  * Null when it isn't exactly one well-formed entry with a title, or uses TeX outside the allowlist.
  */
 export function rekeyEntry(text: string, key: string): string | null {
-  if (!onlySafeTex(text)) return null;
+  // An unescaped % or # breaks compiling the .bbl (a comment / macro parameter).
+  if (!onlySafeTex(text) || /(^|[^\\])[%#]/.test(text)) return null;
   const entry = parseEntry(text);
   return entry && render(entry.type, key, entry.fields);
 }

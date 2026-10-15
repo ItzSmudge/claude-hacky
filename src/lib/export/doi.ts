@@ -28,7 +28,8 @@ export function normaliseDoi(input: string): string | null {
 async function readCapped(res: Response): Promise<string | null> {
   if (!res.body) return null;
   const reader = res.body.getReader();
-  const chunks: Uint8Array[] = [];
+  const decoder = new TextDecoder();
+  let text = "";
   let size = 0;
   for (;;) {
     const { done, value } = await reader.read();
@@ -38,9 +39,9 @@ async function readCapped(res: Response): Promise<string | null> {
       await reader.cancel();
       return null;
     }
-    chunks.push(value);
+    text += decoder.decode(value, { stream: true });
   }
-  return new TextDecoder().decode(Buffer.concat(chunks));
+  return text + decoder.decode();
 }
 
 export async function fetchDoiBibtex(
@@ -73,6 +74,7 @@ export async function fetchDoiBibtex(
       const next = new URL(location, url);
       if (next.protocol !== "https:" || !ALLOWED_HOST.test(next.hostname)) return null;
       url = next.href;
+      await res.body?.cancel();
       res = await fetch(url, init);
     }
     if (!res.ok) return null;

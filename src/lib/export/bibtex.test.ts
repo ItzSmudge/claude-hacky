@@ -116,10 +116,13 @@ describe("buildEntry", () => {
     expect(entry).toContain("author = {{University of California, Berkeley} and {A, B, C}}");
   });
 
-  it("strips HTML tags from titles", () => {
+  it("strips HTML tags from titles but keeps < and > in text", () => {
     expect(buildEntry(paper({ title: "<i>E. coli</i> growth" }), "k")).toContain(
       "title = {E. coli growth}",
     );
+    expect(
+      buildEntry(paper({ title: '<mml:math id="m1">x</mml:math> p < 0.05 and q > 1' }), "k"),
+    ).toContain("title = {x p < 0.05 and q > 1}");
   });
 
   it("normalises a URL-form DOI and drops urls that would break \\url", () => {
@@ -223,6 +226,19 @@ describe("rekeyEntry", () => {
     ["an escaped quote", '@article{x, title="a \\" @misc{evil, title={x}} \\""}'],
   ])("follows BibTeX's brace rules so %s can't smuggle in an entry", (_label, text) => {
     expect(rekeyEntry(text, "k")).toBeNull();
+  });
+
+  it("rejects an unescaped % or # inside a value", () => {
+    expect(rekeyEntry("@article{x, title={50% of teens}}", "k")).toBeNull();
+    expect(rekeyEntry("@article{x, title={Issue #1}}", "k")).toBeNull();
+  });
+
+  it("drops fields that link to other entries", () => {
+    const entry = rekeyEntry(
+      "@article{x, title={T}, crossref={smith2020social}, year={2020}}",
+      "k",
+    );
+    expect(entry).toBe("@article{k,\n  title = {T},\n  year = {2020},\n}");
   });
 
   it("keeps ordinary TeX accents and commands", () => {
