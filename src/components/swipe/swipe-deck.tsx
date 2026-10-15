@@ -13,11 +13,13 @@ import Link from "next/link";
 import {
   useEffect,
   useEffectEvent,
+  useImperativeHandle,
   useLayoutEffect,
   useReducer,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
+  type Ref,
 } from "react";
 import { cn } from "@/lib/utils";
 import type {
@@ -39,6 +41,14 @@ import {
 } from "./deck-state";
 import { classifyGesture } from "./gesture";
 import { PaperCard } from "./paper-card";
+
+/** Lets a parent (the detail sheet) decide the top card through the deck's own exit path. */
+export interface SwipeDeckHandle {
+  /** Commits only if `paperId` is still the top card and the deck is idle; returns whether it did. */
+  decide: (paperId: string, decision: SwipeDecision) => boolean;
+  /** Focuses the deck region (e.g. after a sheet closes with nowhere better to return to). */
+  focus: () => void;
+}
 
 export interface DeckItem {
   paper: Paper;
@@ -85,7 +95,9 @@ export function SwipeDeck({
   onEmpty,
   libraryHref,
   className,
+  ref,
 }: {
+  ref?: Ref<SwipeDeckHandle>;
   items: DeckItem[];
   claims: ProjectContext["claims"];
   onDecide?: (paperId: string, decision: SwipeDecision) => void;
@@ -170,13 +182,15 @@ export function SwipeDeck({
 
   const canCommit = () => top !== null && !busy.current && !dragging.current;
 
-  async function commit(decision: SwipeDecision, velocity = 0) {
+  async function commit(decision: SwipeDecision, velocity = 0, focusDeck = false) {
     if (!top || busy.current) return;
     busy.current = true;
     const paper = top.paper;
     const active = document.activeElement;
     // Keep keyboard focus: the card is leaving, or this button is about to be disabled (last card).
+    // `focusDeck`: the decision came from outside the deck (detail sheet), so land focus here.
     const moveFocus =
+      focusDeck ||
       (cardRef.current?.contains(active) ?? false) ||
       (left === 1 && (sectionRef.current?.contains(active) ?? false));
 
@@ -206,6 +220,15 @@ export function SwipeDeck({
     safely(onDecide, paper.id, decision);
   }
 
+  useImperativeHandle(ref, () => ({
+    decide: (paperId, decision) => {
+      if (!canCommit() || topId !== paperId) return false;
+      void commit(decision, 0, true);
+      return true;
+    },
+    focus: () => regionRef.current?.focus(),
+  }));
+
   function undo() {
     if (busy.current) return;
     const last = lastDecision(deck);
@@ -221,7 +244,8 @@ export function SwipeDeck({
   }
 
   function details() {
-    if (topId) safely(onDetails, topId);
+    // Not while a card is leaving: the sheet would open for the departing paper.
+    if (topId && !busy.current) safely(onDetails, topId);
   }
 
   function startDrag(event: ReactPointerEvent) {
@@ -272,7 +296,7 @@ export function SwipeDeck({
         void commit(event.key === "ArrowRight" ? "save" : "skip");
         break;
       case "ArrowUp":
-        if (!onDetails || !top) return;
+        if (!onDetails || !top || busy.current) return;
         event.preventDefault();
         details();
         break;
