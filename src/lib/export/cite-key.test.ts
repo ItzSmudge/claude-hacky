@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fixturePapers } from "@/fixtures";
 import type { Paper } from "@/types/domain";
-import { asciiFold, citeKey, citeKeys, familyName } from "./cite-key";
+import { asciiFold, citeKey, citeKeys, familyName, plainText } from "./cite-key";
 
 const paper = (over: Partial<Paper> = {}): Paper => ({
   id: "p1",
@@ -62,6 +62,15 @@ describe("citeKey", () => {
     expect(citeKey(paper({ title: "<i>E. coli</i> growth" }))).toBe("boer2020coli");
     expect(citeKey(paper({ year: -500 }))).toBe("boerndsocial");
     expect(citeKey(paper({ year: 12_345 }))).toBe("boerndsocial");
+  });
+
+  it("strips formatting markup only", () => {
+    expect(plainText('<i>E.</i> <sup>2</sup> <mml:math id="m">x</mml:math> <Health> <b>')).toBe(
+      "E. 2 x <Health>",
+    );
+    expect(plainText("Risk &amp; reward &#8211; &#x3b2; &bogus; &#0;")).toBe(
+      "Risk & reward – β &bogus; &#0;",
+    );
   });
 
   it("folds diacritics in the family name", () => {

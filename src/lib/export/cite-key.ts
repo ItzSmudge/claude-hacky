@@ -34,8 +34,10 @@ export const asciiFold = (text: string) =>
     .replace(/[øØæÆœŒßłŁđĐðÐþÞı]/g, (ch) => SPECIAL_LETTERS[ch] ?? ch);
 
 /** OpenAlex titles can carry markup such as `<i>E. coli</i>`; keep the text only. */
-export const stripTags = (text: string) =>
-  text.replace(/<\/?[A-Za-z][\w:-]*(?:\s[^<>]*)?\/?>/g, "");
+// Only formatting markup seen in scholarly metadata, so text like "<Health>" survives.
+const MARKUP =
+  /<\/?(?:i|b|u|em|strong|sup|sub|sc|scp|span|br|p|a|small|big|tt|font|math|mml:[\w-]+)(?:\s[^<>]*)?\/?>/gi;
+export const stripTags = (text: string) => text.replace(MARKUP, "");
 
 const ENTITIES: Record<string, string> = {
   amp: "&",
