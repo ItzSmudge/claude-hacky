@@ -36,14 +36,10 @@ describe("topics", () => {
     });
   });
 
-  it("dedupes case-insensitively, skips blanks and caps at 5", () => {
-    expect(ofKind({ topics: ["A b", "a B", " ", "c", "d", "e", "f", "g"] }, "topic")).toEqual([
-      "topic:a-b",
-      "topic:c",
-      "topic:d",
-      "topic:e",
-      "topic:f",
-    ]);
+  it("dedupes case-insensitively, skips blanks and punctuation-only topics, caps at 5", () => {
+    expect(
+      ofKind({ topics: ["A b", "a B", " ", "++", "a b", "A B", "c", "d", "e", "f", "g"] }, "topic"),
+    ).toEqual(["topic:a-b", "topic:c", "topic:d", "topic:e", "topic:f"]);
   });
 });
 
@@ -59,6 +55,38 @@ describe("keywords", () => {
       "keyword:adolescent",
       "keyword:theory",
     ]);
+  });
+
+  it("keeps words whose -s or -ies is not a plural", () => {
+    expect(
+      ofKind({ title: "Bias in news series about species, physics and diabetes" }, "keyword"),
+    ).toEqual([
+      "keyword:bias",
+      "keyword:news",
+      "keyword:series",
+      "keyword:species",
+      "keyword:physics",
+      "keyword:diabetes",
+    ]);
+  });
+
+  it("applies the length minimum and stopwords after folding", () => {
+    expect(ofKind({ title: "Does sleep help? Uses and analyses of dreams" }, "keyword")).toEqual([
+      "keyword:sleep",
+      "keyword:help",
+      "keyword:dream",
+    ]);
+  });
+
+  it("leaves study-type words to the study feature", () => {
+    expect(
+      ofKind({ title: "Sleep: a longitudinal cohort survey and meta-analysis" }, "keyword"),
+    ).toEqual(["keyword:sleep"]);
+  });
+
+  it("treats composed and decomposed accents the same", () => {
+    const nfc = ofKind({ title: "Bien-être numérique" }, "keyword");
+    expect(ofKind({ title: "Bien-être numérique".normalize("NFD") }, "keyword")).toEqual(nfc);
   });
 
   it("does not fold -ss, -us or -is endings", () => {
@@ -94,6 +122,14 @@ describe("study type", () => {
     ["A cross-sectional survey of 272 teens", ["study:cross-sectional"]],
     ["Teens' views: a qualitative interview study", ["study:qualitative"]],
     ["Longitudinal follow-up of an RCT", ["study:longitudinal", "study:trial"]],
+    ["A meta analysis of sleep", ["study:review"]],
+    ["Two cohorts followed up: follow up at 5 years", ["study:longitudinal"]],
+    ["Three controlled trials", ["study:trial"]],
+    ["A prospective cohort of teens", ["study:longitudinal"]],
+    ["Panel data on screen time", ["study:longitudinal"]],
+    ["Prospective teachers' beliefs about an expert panel", []],
+    ["A survey of deep learning methods", ["study:review"]],
+    ["A survey on the literature of sleep", ["study:review"]],
     ["Social media and adolescent mental health", []],
   ])("%s", (title, expected) => {
     expect(ofKind({ title }, "study")).toEqual(expected);
@@ -107,8 +143,9 @@ describe("study type", () => {
 
 describe("year bucket", () => {
   it.each([
-    [2026, "year:last-2-years"],
-    [2024, "year:last-2-years"],
+    [2027, "year:recent"],
+    [2026, "year:recent"],
+    [2024, "year:recent"],
     [2023, "year:3-5-years"],
     [2021, "year:3-5-years"],
     [2020, "year:6-10-years"],
@@ -118,7 +155,7 @@ describe("year bucket", () => {
     expect(ofKind({ year }, "year")).toEqual([expected]);
   });
 
-  it.each([undefined, 0, Number.NaN, 2027])("ignores %s", (year) => {
+  it.each([undefined, 0, Number.NaN, 2028])("ignores %s", (year) => {
     expect(ofKind({ year }, "year")).toEqual([]);
   });
 });
