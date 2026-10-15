@@ -243,6 +243,8 @@
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    /* Infinite loops (skeleton pulse, spinners) would otherwise restart every 0.01ms: flicker. */
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }
