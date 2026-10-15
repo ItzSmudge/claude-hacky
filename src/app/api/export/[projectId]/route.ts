@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { exportRequestSchema, paperSchema, type ApiError } from "@/lib/api-schemas";
+import { serverEnv } from "@/lib/env";
 import { asciiFold, bibtexFor } from "@/lib/export";
 import { notImplemented } from "@/lib/http/not-implemented";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -22,10 +23,14 @@ const fileSlug = (title: string) =>
   asciiFold(title)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60) || "references";
+    .slice(0, 60)
+    .replace(/^-+|-+$/g, "") || "references";
 
 export async function GET(request: Request, ctx: RouteContext<"/api/export/[projectId]">) {
+  const supabase = await getSupabaseServerClient();
+  const { data: auth } = await supabase.auth.getClaims();
+  if (!auth?.claims.sub) return error(401, "Sign in to export");
+
   const { projectId } = await ctx.params;
   if (!projectIdSchema.safeParse(projectId).success) return error(400, "Invalid project id");
   const query = exportRequestSchema.safeParse(
@@ -33,10 +38,6 @@ export async function GET(request: Request, ctx: RouteContext<"/api/export/[proj
   );
   if (!query.success) return error(400, "Invalid export format", z.treeifyError(query.error));
   if (query.data.format !== "bibtex") return notImplemented("LB-03");
-
-  const supabase = await getSupabaseServerClient();
-  const { data: auth } = await supabase.auth.getClaims();
-  if (!auth?.claims.sub) return error(401, "Sign in to export");
 
   const { data: project, error: projectError } = await supabase
     .from("projects")
@@ -67,7 +68,12 @@ export async function GET(request: Request, ctx: RouteContext<"/api/export/[proj
     else console.warn("[export] skipping malformed paper", row.paper_id);
   }
 
-  const { text } = await bibtexFor([...papers.values()], { fetch, signal: request.signal });
+  const mailto = serverEnv().CROSSREF_MAILTO;
+  const { text } = await bibtexFor([...papers.values()], {
+    fetch,
+    signal: request.signal,
+    userAgent: `PaperCut/1.0${mailto ? ` (mailto:${mailto})` : ""}`,
+  });
   return new NextResponse(text, {
     headers: {
       "content-type": "application/x-bibtex; charset=utf-8",

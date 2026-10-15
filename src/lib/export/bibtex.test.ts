@@ -18,12 +18,11 @@ const paper = (over: Partial<Paper> = {}): Paper => ({
   ...over,
 });
 
-/** True when every { has a matching } (ignoring escaped ones). */
+/** True when every { has a matching }, counted as BibTeX does (backslashes don't escape). */
 const balanced = (text: string) => {
   let depth = 0;
   for (let i = 0; i < text.length; i++) {
-    if (text[i] === "\\") i++;
-    else if (text[i] === "{") depth++;
+    if (text[i] === "{") depth++;
     else if (text[i] === "}" && --depth < 0) return false;
   }
   return depth === 0;
@@ -32,7 +31,7 @@ const balanced = (text: string) => {
 describe("escapeLatex", () => {
   it("escapes every LaTeX special character", () => {
     expect(escapeLatex("A & B 50% $5 #1 a_b {x} ~ ^ \\")).toBe(
-      "A \\& B 50\\% \\$5 \\#1 a\\_b \\{x\\} \\textasciitilde{} \\textasciicircum{} \\textbackslash{}",
+      "A \\& B 50\\% \\$5 \\#1 a\\_b \\textbraceleft{}x\\textbraceright{} \\textasciitilde{} \\textasciicircum{} \\textbackslash{}",
     );
   });
 });
@@ -88,7 +87,9 @@ describe("buildEntry", () => {
       }),
       "k",
     );
-    expect(entry).toContain("title = {Risk \\& resilience: 50\\% of \\{teens\\}}");
+    expect(entry).toContain(
+      "title = {Risk \\& resilience: 50\\% of \\textbraceleft{}teens\\textbraceright{}}",
+    );
     expect(entry).toContain("journal = {Journal of Health\\_Data}");
     expect(entry).toContain("author = {Anne O'Neil \\& co}");
   });
@@ -99,6 +100,35 @@ describe("buildEntry", () => {
       "k",
     );
     expect(entry).toContain("author = {{World Health Organization} and Jane Doe}");
+  });
+
+  it("keeps braces balanced around a stray brace in the metadata", () => {
+    const entry = buildEntry(paper({ title: "Sets {x and y", venue: "J}" }), "k");
+    expect(balanced(entry)).toBe(true);
+    expect(entry).not.toMatch(/\\[{}]/);
+  });
+
+  it("braces organisations with commas and names with 2+ commas", () => {
+    const entry = buildEntry(
+      paper({ authors: [{ name: "University of California, Berkeley" }, { name: "A, B, C" }] }),
+      "k",
+    );
+    expect(entry).toContain("author = {{University of California, Berkeley} and {A, B, C}}");
+  });
+
+  it("strips HTML tags from titles", () => {
+    expect(buildEntry(paper({ title: "<i>E. coli</i> growth" }), "k")).toContain(
+      "title = {E. coli growth}",
+    );
+  });
+
+  it("normalises a URL-form DOI and drops urls that would break \\url", () => {
+    const entry = buildEntry(
+      paper({ doi: "https://doi.org/10.1/x", url: "https://example.org/a%20b#frag" }),
+      "k",
+    );
+    expect(entry).toContain("doi = {10.1/x}");
+    expect(entry).toContain("url = {https://doi.org/10.1/x}");
   });
 
   it("produces balanced braces for every fixture paper", () => {
@@ -170,13 +200,36 @@ describe("rekeyEntry", () => {
     expect(rekeyEntry(text, "k")).toBeNull();
   });
 
-  it("rejects entries carrying dangerous TeX primitives", () => {
-    expect(rekeyEntry("@article{x, title={Hi \\immediate\\write18{rm -rf ~}}}", "k")).toBeNull();
-    expect(rekeyEntry("@article{x, title={\\input{/etc/passwd}}}", "k")).toBeNull();
+  it.each([
+    ["\\write18", "@article{x, title={Hi \\immediate\\write18{rm -rf ~}}}"],
+    ["\\input", "@article{x, title={\\input{/etc/passwd}}}"],
+    ["\\InputIfFileExists", "@article{x, title={\\InputIfFileExists{/etc/passwd}{}{}}}"],
+    ["\\verbatiminput", "@article{x, title={\\verbatiminput{/etc/passwd}}}"],
+    ["\\luaexec", "@article{x, title={\\luaexec{os.execute('id')}}}"],
+    ["\\ShellEscape", "@article{x, title={\\ShellEscape{id}}}"],
+    ["\\NewDocumentCommand", "@article{x, title={\\NewDocumentCommand{\\x}{}{}}}"],
+    [
+      "\\scantokens rebuilding a name",
+      "@article{x, title={\\expandafter\\scantokens\\expandafter{\\string\\i mmediate\\string\\w rite18{id}}}}",
+    ],
+    ["^^ notation", "@article{x, title={^^5cinput{/etc/passwd}}}"],
+    ["\\csname", "@article{x, title={\\csname input\\endcsname{x}}}"],
+  ])("rejects TeX outside the allowlist: %s", (_label, text) => {
+    expect(rekeyEntry(text, "k")).toBeNull();
+  });
+
+  it.each([
+    ["an escaped closing brace", '@article{x, title={a\\} @preamble{"x"} \\{}}'],
+    ["an escaped quote", '@article{x, title="a \\" @misc{evil, title={x}} \\""}'],
+  ])("follows BibTeX's brace rules so %s can't smuggle in an entry", (_label, text) => {
+    expect(rekeyEntry(text, "k")).toBeNull();
   });
 
   it("keeps ordinary TeX accents and commands", () => {
-    const entry = rekeyEntry("@article{x, title={Sch{\\o}nning and \\textit{in vivo}}}", "k");
-    expect(entry).toContain("title = {Sch{\\o}nning and \\textit{in vivo}}");
+    const entry = rekeyEntry(
+      '@article{x, title={Sch{\\o}nning, G{\\"o}del and \\textit{in vivo} 50\\%}}',
+      "k",
+    );
+    expect(entry).toContain('title = {Sch{\\o}nning, G{\\"o}del and \\textit{in vivo} 50\\%}');
   });
 });

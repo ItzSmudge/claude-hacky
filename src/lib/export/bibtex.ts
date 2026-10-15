@@ -1,4 +1,6 @@
 import type { Paper } from "@/types/domain";
+import { stripTags } from "./cite-key";
+import { normaliseDoi } from "./doi";
 
 /**
  * BibTeX entries (LB-02), always rendered by code: either built from our retrieved `Paper`
@@ -7,8 +9,9 @@ import type { Paper } from "@/types/domain";
 
 const LATEX_SPECIALS: Record<string, string> = {
   "\\": "\\textbackslash{}",
-  "{": "\\{",
-  "}": "\\}",
+  // \{ and \} would unbalance BibTeX's brace count (it ignores backslashes); these don't.
+  "{": "\\textbraceleft{}",
+  "}": "\\textbraceright{}",
   "&": "\\&",
   "%": "\\%",
   $: "\\$",
@@ -26,36 +29,44 @@ const needsProtection = (word: string) => /\p{Lu}/u.test(word.replace(/^\P{L}+/u
 
 /** Escaped title text with case-sensitive words braced. */
 export const latexTitle = (title: string) =>
-  title
+  stripTags(title)
     .split(/(\s+)/)
     .map((part) => (needsProtection(part) ? `{${escapeLatex(part)}}` : escapeLatex(part)))
     .join("");
 
 const ORGANISATION =
-  /\b(and|group|consortium|collaboration|collaborative|committee|organi[sz]ation|association|society|institute|council|network|team|investigators)\b/i;
+  /\b(and|group|consortium|collaboration|collaborative|committee|organi[sz]ation|association|society|institute|council|network|team|investigators|universit\w*|department|cent(?:re|er)|laborator\w*|foundation|hospital|ministry|agency)\b/i;
 
-/** BibTeX splits names on " and "; braces keep an organisation as one literal name. */
+/**
+ * BibTeX splits names on " and " and reads commas as Last, First; braces keep an organisation
+ * (or anything with 2+ commas) as one literal name.
+ */
 const latexName = (name: string) => {
   const escaped = escapeLatex(name.trim());
-  return ORGANISATION.test(name) ? `{${escaped}}` : escaped;
+  const commas = name.split(",").length - 1;
+  return ORGANISATION.test(name) || commas >= 2 ? `{${escaped}}` : escaped;
 };
 
 const field = (name: string, value: string) => `  ${name} = ${value},`;
 
-/** Verbatim fields (doi, url) can't be escaped; drop a value whose braces would break the entry. */
+/**
+ * Verbatim fields (doi, url) can't be escaped; drop a value whose braces would break the entry
+ * or whose % / # break `\url` inside macro arguments.
+ */
 const verbatim = (value: string | undefined) =>
-  value && !/[{}\\]/.test(value) ? `{${value}}` : undefined;
+  value && !/[{}\\%#\s]/.test(value) ? `{${value}}` : undefined;
 
 export function buildEntry(paper: Paper, key: string): string {
   const authors = paper.authors.map((a) => a.name).filter((n) => n.trim());
-  const url = paper.url ?? (paper.doi ? `https://doi.org/${paper.doi}` : undefined);
+  const doi = paper.doi ? (normaliseDoi(paper.doi) ?? undefined) : undefined;
+  const url = verbatim(paper.url) ?? verbatim(doi && `https://doi.org/${doi}`);
   const fields: [string, string | undefined][] = [
     ["author", authors.length ? `{${authors.map(latexName).join(" and ")}}` : undefined],
     ["title", `{${latexTitle(paper.title)}}`],
     ["journal", paper.venue ? `{${escapeLatex(paper.venue)}}` : undefined],
     ["year", paper.year === undefined ? undefined : `{${paper.year}}`],
-    ["doi", verbatim(paper.doi)],
-    ["url", verbatim(url)],
+    ["doi", verbatim(doi)],
+    ["url", url],
   ];
   return render(paper.venue ? "article" : "misc", key, fields);
 }
@@ -67,19 +78,36 @@ function render(type: string, key: string, fields: [string, string | undefined][
   return [`@${type}{${key},`, ...lines, "}"].join("\n");
 }
 
-// Primitives that read/write files, run shell commands or redefine macros when the .bib is
-// compiled (e.g. with --shell-escape). Fetched entries containing them fall back to buildEntry.
-const DANGEROUS_TEX =
-  /\\(?:immediate|write|input|include|openin|openout|read|catcode|def|edef|gdef|xdef|let|csname|directlua|latelua|special|newcommand|renewcommand|providecommand|usepackage|documentclass|makeatletter)(?![a-zA-Z])|\^\^/;
+// Fetched text is external: only these control sequences may appear in it. Anything else
+// (\input, \write18, \scantokens, \csname, …) could read files or run commands when the .bib is
+// compiled, so the entry falls back to buildEntry. An allowlist, because denylists leak.
+const ALLOWED_SYMBOLS = new Set([..."'\"`^~=.&%$#_{} -"]);
+const ALLOWED_WORDS = new Set(
+  "u v H c d b t r k i j o O l L ss ae AE oe OE aa AA textendash textemdash textit textbf emph textsc textsuperscript textsubscript textbraceleft textbraceright textasciitilde textasciicircum textbackslash mathrm".split(
+    " ",
+  ),
+);
+
+function onlySafeTex(text: string): boolean {
+  if (text.includes("^^")) return false; // ^^5c is a backslash in TeX
+  for (let i = text.indexOf("\\"); i !== -1; i = text.indexOf("\\", i + 1)) {
+    const word = /^[A-Za-z]+/.exec(text.slice(i + 1))?.[0];
+    if (word ? !ALLOWED_WORDS.has(word) : !ALLOWED_SYMBOLS.has(text[i + 1] ?? "")) return false;
+    i += word ? word.length : 1;
+  }
+  return true;
+}
+
+// Skipping follows BibTeX's own rules, which ignore backslashes: every { and } counts, and a
+// quoted value ends at the first " at depth 0. Anything else would let a value that looks
+// balanced to us end early for BibTeX and smuggle in a second entry or @preamble.
 
 /** Index just past a balanced `{…}` starting at `start`, or -1. */
 function skipBraced(text: string, start: number): number {
   let depth = 0;
   for (let i = start; i < text.length; i++) {
-    const ch = text[i];
-    if (ch === "\\") i++;
-    else if (ch === "{") depth++;
-    else if (ch === "}" && --depth === 0) return i + 1;
+    if (text[i] === "{") depth++;
+    else if (text[i] === "}" && --depth === 0) return i + 1;
   }
   return -1;
 }
@@ -89,8 +117,7 @@ function skipQuoted(text: string, start: number): number {
   let depth = 0;
   for (let i = start + 1; i < text.length; i++) {
     const ch = text[i];
-    if (ch === "\\") i++;
-    else if (ch === "{") depth++;
+    if (ch === "{") depth++;
     else if (ch === "}" && --depth < 0) return -1;
     else if (ch === '"' && depth === 0) return i + 1;
   }
@@ -136,10 +163,10 @@ function parseEntry(text: string): { type: string; fields: [string, string][] } 
 
 /**
  * Validates a fetched entry and swaps its key for ours, one field per line.
- * Null when it isn't exactly one well-formed entry with a title, or carries dangerous TeX.
+ * Null when it isn't exactly one well-formed entry with a title, or uses TeX outside the allowlist.
  */
 export function rekeyEntry(text: string, key: string): string | null {
-  if (DANGEROUS_TEX.test(text)) return null;
+  if (!onlySafeTex(text)) return null;
   const entry = parseEntry(text);
   return entry && render(entry.type, key, entry.fields);
 }

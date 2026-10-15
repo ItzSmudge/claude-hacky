@@ -14,13 +14,17 @@ const paper = (id: string, over: Partial<Paper> = {}): Paper => ({
   ...over,
 });
 
-const crossref = (title: string) => ` @article{Crossref_2020, title={${title}}, year={2020}}`;
+const crossref = (title: string) =>
+  new Response(` @article{Crossref_2020, title={${title}}, year={2020}}`, {
+    status: 200,
+    headers: { "content-type": "application/x-bibtex" },
+  });
 
 describe("bibtexFor", () => {
   it("uses doi.org entries where they validate and builds the rest", async () => {
     const fetch = vi.fn(async (url: string) =>
       url.endsWith("/10.1/good")
-        ? new Response(crossref("From Crossref"), { status: 200 })
+        ? crossref("From Crossref")
         : new Response("<html>", { status: 200 }),
     );
     const result = await bibtexFor(
@@ -54,6 +58,18 @@ describe("bibtexFor", () => {
     expect(result).toEqual({ text: expect.stringMatching(/^% .*\n$/), fromDoi: 0, built: 0 });
   });
 
+  it("builds entries still pending when the export deadline passes", async () => {
+    const fetch = vi.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+        }),
+    );
+    const papers = Array.from({ length: 6 }, (_, i) => paper(`p${i}`, { doi: `10.1/p${i}` }));
+    const result = await bibtexFor(papers, { fetch, deadlineMs: 20 });
+    expect(result).toMatchObject({ fromDoi: 0, built: 6 });
+  });
+
   it("fetches at most 4 DOIs at once", async () => {
     let active = 0;
     let peak = 0;
@@ -61,7 +77,7 @@ describe("bibtexFor", () => {
       peak = Math.max(peak, ++active);
       await new Promise((resolve) => setTimeout(resolve, 5));
       active--;
-      return new Response(crossref("T"), { status: 200 });
+      return crossref("T");
     });
     const papers = Array.from({ length: 10 }, (_, i) => paper(`p${i}`, { doi: `10.1/p${i}` }));
     const result = await bibtexFor(papers, { fetch });

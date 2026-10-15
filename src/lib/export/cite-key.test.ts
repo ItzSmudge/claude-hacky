@@ -58,6 +58,12 @@ describe("citeKey", () => {
     expect(citeKey(paper({ title: "On the of" }))).toBe("boer2020untitled");
   });
 
+  it("ignores HTML tags in the title and out-of-range years", () => {
+    expect(citeKey(paper({ title: "<i>E. coli</i> growth" }))).toBe("boer2020coli");
+    expect(citeKey(paper({ year: -500 }))).toBe("boerndsocial");
+    expect(citeKey(paper({ year: 12_345 }))).toBe("boerndsocial");
+  });
+
   it("folds diacritics in the family name", () => {
     expect(citeKey(paper({ authors: [{ name: "Viktor Schønning" }] }))).toBe("schonning2020social");
   });
