@@ -86,6 +86,10 @@ export async function GET(request: Request, ctx: RouteContext<"/api/export/[proj
         type: "text/markdown; charset=utf-8",
       };
       break;
+    default: {
+      const unhandled: never = query.data.format;
+      return error(400, `Unsupported format: ${String(unhandled)}`);
+    }
   }
   return new NextResponse(file.body, {
     headers: {

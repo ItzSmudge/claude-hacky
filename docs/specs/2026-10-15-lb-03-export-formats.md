@@ -20,11 +20,11 @@ The library page `/app/p/<id>/library` shows the saved count and an **Export** p
 - **Downloads,** one row each with the file extension: BibTeX `.bib`, LaTeX `.tex`, CSV `.csv`, Markdown `.md`. Each links to `GET /api/export/<id>?format=…`.
 - **Empty library:** "Nothing saved yet. Swipe right on papers to collect them here," with a link back to the deck. Downloads are hidden.
 
-LB-01 later adds the paper list above the panel and can reuse `citeCommand` / `CopyCiteButton` per paper.
+LB-01 later adds the paper list above the panel and can reuse `citeCommand` / `CopyCite` per paper.
 
 ## Inputs / outputs (`src/lib/export`)
 
-- `loadSavedLibrary(supabase, projectId)` → `{ title, papers, analyses } | null`. Shared by the route and the page. Uses RLS as the user. `null` means the project isn't visible.
+- `loadSavedLibrary(supabase, projectId)` → `{ ok: true, library: { title, papers, analyses } } | { ok: false, reason: "not-found" | "error" }`. Shared by the route and the page. Uses RLS as the user, so "not-found" also covers projects the user isn't a member of.
 - `citeCommand(keys)` → `\cite{a,b}`, or an empty string if there are no keys.
 - `latexBibliography(papers, keys)` → `\begin{thebibliography}{N}` with one `\bibitem{key}` per paper in cite-key order.
   - Each item reads: authors (more than 6 become the first author + `et~al.`), `\newblock` title, `\newblock \emph{venue}`, year, `\newblock \url{https://doi.org/…}` (or the paper's url).
@@ -44,7 +44,7 @@ LB-01 later adds the paper list above the panel and can reuse `citeCommand` / `C
 - **Missing data:** a paper with no analysis is listed under "Not analysed yet", and its CSV analysis columns are empty. No authors, year or venue means those parts are skipped (no stray punctuation). Titles containing `*`, `_`, `[`, `` ` `` or HTML tags are escaped or stripped.
 - **Group projects:** papers saved by several members are listed once.
 - **Hostile values:** quotes, commas and newlines inside CSV values are quoted; formula-looking titles (`=HYPERLINK(…)`) are neutralised.
-- **Empty library:** every format returns a valid empty file, i.e. its header plus an empty `thebibliography` / header row / "Nothing saved yet."
+- **Empty library:** every format returns a valid empty file: BibTeX and LaTeX are a comment only (an empty `thebibliography` doesn't compile), CSV is the header row, Markdown says "Nothing saved yet."
 
 ## Out of scope
 
@@ -52,3 +52,10 @@ LB-01 later adds the paper list above the panel and can reuse `citeCommand` / `C
 - Relations view (LB-04).
 - Per-member save counts (GR-03).
 - Biblatex/APA styles.
+
+## Review hardening
+
+- Every text value goes through `plainText`: tags stripped, common HTML entities decoded, whitespace collapsed to one line.
+- **LaTeX:** Greek letters, common maths symbols and `< > |` are mapped for pdflatex, and invisible characters are dropped. Other scripts need XeLaTeX/LuaLaTeX (noted in the file header).
+- **Links:** only http(s) URLs in printable ASCII appear in any export.
+- **CSV:** formulas are neutralised also behind leading spaces and in fullwidth form.

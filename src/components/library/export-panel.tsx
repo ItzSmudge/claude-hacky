@@ -1,10 +1,10 @@
 "use client";
 
 import { Check, Copy, Download } from "lucide-react";
-import { Fragment, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { citeCommand } from "@/lib/export/latex";
+import { citeCommand } from "@/lib/export/cite-key";
 import type { ExportFormat } from "@/lib/api-schemas";
 
 const FORMATS: { format: ExportFormat; name: string; ext: string; use: string }[] = [
@@ -29,6 +29,10 @@ const FORMATS: { format: ExportFormat; name: string; ext: string; use: string }[
   },
 ];
 
+/** The design system's focus ring, at full strength (the shared Button's 50% ring is under 3:1). */
+const FOCUS_RING =
+  "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card";
+
 /** Library export (LB-03): copy one \cite{} with every key, or download a file per format. */
 export function ExportPanel({ projectId, citeKeys }: { projectId: string; citeKeys: string[] }) {
   return (
@@ -41,20 +45,29 @@ export function ExportPanel({ projectId, citeKeys }: { projectId: string; citeKe
       </h2>
       <CopyCite keys={citeKeys} />
       <div className="flex flex-col gap-2">
-        <h3 className="text-sm font-medium text-muted-foreground">Download</h3>
-        <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border">
+        <h3 id="download-heading" className="text-sm font-medium text-muted-foreground">
+          Download
+        </h3>
+        <ul
+          aria-labelledby="download-heading"
+          className="divide-y divide-border rounded-xl border border-border"
+        >
           {FORMATS.map(({ format, name, ext, use }) => (
             <li key={format}>
               <a
                 href={`/api/export/${projectId}?format=${format}`}
                 download
-                className="flex items-center gap-3 px-4 py-3 transition-colors outline-none hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                aria-describedby={`export-${format}-use`}
+                className="flex items-center gap-3 px-4 py-3 transition-colors outline-none hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset [li:first-child>&]:rounded-t-[11px] [li:last-child>&]:rounded-b-[11px]"
               >
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="font-medium text-foreground">
                     {name} <span className="font-mono text-sm text-muted-foreground">{ext}</span>
+                    <span className="sr-only"> file, downloads</span>
                   </span>
-                  <span className="text-sm text-muted-foreground">{use}</span>
+                  <span id={`export-${format}-use`} className="text-sm text-muted-foreground">
+                    {use}
+                  </span>
                 </span>
                 <Download aria-hidden className="size-5 shrink-0 text-primary" strokeWidth={1.75} />
               </a>
@@ -70,20 +83,24 @@ export function ExportPanel({ projectId, citeKeys }: { projectId: string; citeKe
 export function CopyCite({ keys }: { keys: string[] }) {
   const command = citeCommand(keys);
   const codeRef = useRef<HTMLElement>(null);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [copied, setCopied] = useState(false);
   const count = `${keys.length} cite ${keys.length === 1 ? "key" : "keys"}`;
+
+  useEffect(() => () => clearTimeout(timer.current), []);
 
   async function copy() {
     try {
       await navigator.clipboard.writeText(command);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => setCopied(false), 2000);
       toast.success(`Copied ${count}`);
     } catch {
       // Clipboard blocked (permissions, insecure context): select it for a manual copy instead.
       const code = codeRef.current;
       if (code) window.getSelection()?.selectAllChildren(code);
-      toast.error("Couldn't reach the clipboard. The citation is selected: press Ctrl+C to copy.");
+      toast.error("Couldn't reach the clipboard. The citation is selected: copy it from the box.");
     }
   }
 
@@ -91,9 +108,13 @@ export function CopyCite({ keys }: { keys: string[] }) {
     <div className="flex flex-col gap-2">
       <h3 className="text-sm font-medium text-muted-foreground">Cite everything</h3>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+        {/* Focusable so keyboard users can scroll a long list of keys. */}
         <code
           ref={codeRef}
-          className="max-h-32 flex-1 overflow-y-auto rounded-xl bg-highlight px-3 py-2 font-mono text-sm wrap-anywhere text-highlight-foreground"
+          tabIndex={0}
+          role="region"
+          aria-label="Cite command for all saved papers"
+          className={`max-h-32 flex-1 overflow-y-auto rounded-xl bg-highlight px-3 py-2 font-mono text-sm wrap-anywhere text-highlight-foreground outline-none hc:border-2 hc:border-border ${FOCUS_RING}`}
         >
           {/* Line breaks only after commas, so keys stay whole. */}
           {command.split(",").map((part, i) => (
@@ -107,7 +128,7 @@ export function CopyCite({ keys }: { keys: string[] }) {
             </Fragment>
           ))}
         </code>
-        <Button onClick={copy} size="lg" className="rounded-xl px-4">
+        <Button onClick={copy} size="lg" className={`h-11 rounded-xl px-4 ${FOCUS_RING}`}>
           {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
           {copied ? "Copied" : "Copy"}
           <span className="sr-only"> {count}</span>

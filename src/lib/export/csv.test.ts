@@ -69,9 +69,14 @@ describe("csvExport", () => {
 
   it("quotes commas, quotes and newlines", () => {
     const papers = [paper({ title: 'Teens, "screens"\nand sleep' })];
-    expect(csvExport(papers, citeKeys(papers), new Map())).toContain(
-      '"Teens, ""screens""\nand sleep"',
+    const csv = csvExport(
+      papers,
+      citeKeys(papers),
+      new Map([["p1", analysis({ overview: "Line one,\nline two" })]]),
     );
+    // Titles are one line in every export; analysis text keeps its breaks, quoted.
+    expect(csv).toContain(',"Teens, ""screens"" and sleep",');
+    expect(csv).toContain('"Line one,\nline two"\r\n');
   });
 
   it("neutralises cells that spreadsheets would run as formulas", () => {
@@ -90,5 +95,26 @@ describe("csvExport", () => {
 
   it("is just the header for an empty library", () => {
     expect(rows(csvExport([], new Map(), new Map()))).toEqual([HEADER, ""]);
+  });
+
+  it("neutralises formulas hidden behind spaces or in fullwidth form", () => {
+    const papers = [paper({ title: " =1+1", venue: "＝SUM(A1)" })];
+    const csv = csvExport(papers, citeKeys(papers), new Map());
+    expect(csv).toContain(",'=1+1,"); // plainText trims the title first
+    expect(csv).toContain(",'＝SUM(A1),");
+    const spaced = [paper()];
+    const withAnalysis = csvExport(
+      spaced,
+      citeKeys(spaced),
+      new Map([["p1", analysis({ whyItMatters: "  @cmd" })]]),
+    );
+    expect(withAnalysis).toContain(",'  @cmd,");
+  });
+
+  it("uses the vetted http(s) link only", () => {
+    const papers = [paper({ url: "javascript:alert(1)" })];
+    expect(csvExport(papers, citeKeys(papers), new Map())).toContain(
+      ",10.1/x,https://doi.org/10.1/x,",
+    );
   });
 });

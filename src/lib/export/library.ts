@@ -29,16 +29,12 @@ export async function loadSavedLibrary(
   if (projectError) return failed("reading project", projectError);
   if (!project) return { ok: false, reason: "not-found" };
 
-  const [saves, analyses] = await Promise.all([
-    supabase
-      .from("swipes")
-      .select("paper_id, papers(data)")
-      .eq("project_id", projectId)
-      .eq("decision", "save"),
-    supabase.from("paper_analyses").select("paper_id, analysis").eq("project_id", projectId),
-  ]);
+  const saves = await supabase
+    .from("swipes")
+    .select("paper_id, papers(data)")
+    .eq("project_id", projectId)
+    .eq("decision", "save");
   if (saves.error) return failed("reading saves", saves.error);
-  if (analyses.error) return failed("reading analyses", analyses.error);
 
   const papers = new Map<string, Paper>();
   for (const row of saves.data) {
@@ -47,10 +43,18 @@ export async function loadSavedLibrary(
     else console.warn("[export] skipping malformed paper", row.paper_id);
   }
   const byPaper = new Map<string, PaperAnalysis>();
-  for (const row of analyses.data) {
-    if (!papers.has(row.paper_id)) continue;
-    const parsed = paperAnalysisSchema.safeParse(row.analysis);
-    if (parsed.success) byPaper.set(row.paper_id, { ...parsed.data, paperId: row.paper_id });
+  if (papers.size > 0) {
+    const analyses = await supabase
+      .from("paper_analyses")
+      .select("paper_id, analysis")
+      .eq("project_id", projectId)
+      .in("paper_id", [...papers.keys()]);
+    if (analyses.error) return failed("reading analyses", analyses.error);
+    for (const row of analyses.data) {
+      const parsed = paperAnalysisSchema.safeParse(row.analysis);
+      if (parsed.success) byPaper.set(row.paper_id, { ...parsed.data, paperId: row.paper_id });
+      else console.warn("[export] skipping malformed analysis", row.paper_id);
+    }
   }
   return {
     ok: true,

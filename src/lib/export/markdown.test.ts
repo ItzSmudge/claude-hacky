@@ -94,4 +94,27 @@ describe("markdownReadingList", () => {
   it("says so when nothing is saved", () => {
     expect(list([], [])).toBe("# Reading list: Teen screens\n\nNothing saved yet.\n");
   });
+
+  it("keeps every value on one line so it can't start new markdown blocks", () => {
+    const md = list(
+      [paper("a", { title: "Title\n\n- injected item\n    code\n---" })],
+      [{ ...analysis("a", "evidence", 50), whyItMatters: "Line\n\n# Heading\n1. list" }],
+      "Teen\nscreens",
+    );
+    expect(md.startsWith("# Reading list: Teen screens\n")).toBe(true);
+    expect(md).toContain("**Title - injected item code ---.**");
+    expect(md).toContain("  Why it matters: Line \\# Heading 1. list");
+    expect(md.split("\n").filter((line) => line.startsWith("- "))).toHaveLength(1);
+  });
+
+  it("escapes strikethrough, math, images and entities", () => {
+    const md = list([paper("a", { title: "~~x~~ $y$ ![i](u) &amp; a=b" })], []);
+    expect(md).toContain("**\\~\\~x\\~\\~ \\$y\\$ \\!\\[i\\](u) \\& a\\=b.**");
+  });
+
+  it("only links http(s) urls", () => {
+    const md = list([paper("a", { doi: undefined, url: "javascript:alert(1)" })], []);
+    expect(md).not.toContain("javascript");
+    expect(md).not.toContain("](");
+  });
 });

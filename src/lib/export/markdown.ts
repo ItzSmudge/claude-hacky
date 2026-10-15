@@ -1,6 +1,6 @@
 import type { Paper, PaperAnalysis } from "@/types/domain";
 import { paperDoi, paperUrl } from "./bibtex";
-import { stripTags } from "./cite-key";
+import { plainText } from "./cite-key";
 
 /**
  * Markdown reading list (LB-03), grouped by how the paper is used. Bibliographic parts come
@@ -15,8 +15,12 @@ const SECTIONS: [PaperAnalysis["useAs"] | undefined, string][] = [
   [undefined, "Not analysed yet"],
 ];
 
-/** Backslash-escapes characters Markdown would treat as formatting. */
-const escapeMd = (text: string) => text.replace(/[\\`*_[\]#<>|]/g, (ch) => `\\${ch}`);
+/**
+ * One line of inert text: whitespace collapsed (a line break could start a list, code block or
+ * heading) and characters Markdown or common extensions (GFM, Obsidian) format backslash-escaped.
+ */
+const escapeMd = (text: string) =>
+  plainText(text).replace(/[\\`*_[\]#<>|~$!&=]/g, (ch) => `\\${ch}`);
 
 /** Link destinations can't contain spaces or unbalanced parentheses. */
 const LINK_ESCAPES: Record<string, string> = { "(": "%28", ")": "%29", " ": "%20" };
@@ -29,7 +33,7 @@ function item(paper: Paper, key: string, analysis: PaperAnalysis | undefined): s
   const doi = paperDoi(paper);
   const url = paperUrl(paper);
   const parts = [
-    `**${sentence(escapeMd(stripTags(paper.title).trim()))}**`,
+    `**${sentence(escapeMd(paper.title))}**`,
     authors.length || paper.year
       ? [authors.length ? escapeMd(authors.join(", ")) : "", paper.year ? `(${paper.year})` : ""]
           .filter(Boolean)

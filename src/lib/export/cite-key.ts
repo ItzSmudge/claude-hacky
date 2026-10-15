@@ -37,6 +37,36 @@ export const asciiFold = (text: string) =>
 export const stripTags = (text: string) =>
   text.replace(/<\/?[A-Za-z][\w:-]*(?:\s[^<>]*)?\/?>/g, "");
 
+const ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+};
+
+const decodeEntity = (match: string, name: string) => {
+  if (name[0] !== "#") return ENTITIES[name.toLowerCase()] ?? match;
+  const code =
+    name[1] === "x" || name[1] === "X" ? parseInt(name.slice(2), 16) : Number(name.slice(1));
+  return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match;
+};
+
+/**
+ * Metadata text as every export renders it: markup stripped, common HTML entities decoded
+ * (OpenAlex titles carry `&amp;`), and all whitespace, including line breaks, collapsed.
+ */
+export const plainText = (text: string) =>
+  stripTags(text)
+    .replace(/&(#\d+|#x[0-9a-f]+|[a-z]+);/gi, decodeEntity)
+    .replace(/\s+/g, " ")
+    .trim();
+
+/** One `\cite{}` with every key (empty when there are none). Shared by exports and the UI. */
+export const citeCommand = (keys: readonly string[]) =>
+  keys.length ? `\\cite{${keys.join(",")}}` : "";
+
 const SUFFIXES = new Set(["jr", "sr", "ii", "iii", "iv"]);
 
 /** The family name as written: before the comma of "Last, First", else the last non-suffix word. */
@@ -68,7 +98,7 @@ export function citeKey(paper: Paper): string {
   const y = paper.year;
   const year = y !== undefined && Number.isInteger(y) && y > 0 && y < 10_000 ? y : "nd";
   const word =
-    stripTags(paper.title)
+    plainText(paper.title)
       .split(/\s+/)
       .map(slug)
       .find((w) => w.length > 1 && !STOPWORDS.has(w)) ?? "untitled";

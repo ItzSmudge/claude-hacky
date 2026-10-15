@@ -1,6 +1,6 @@
 import type { Paper, PaperAnalysis } from "@/types/domain";
 import { paperDoi, paperUrl } from "./bibtex";
-import { sortByKey, stripTags } from "./cite-key";
+import { plainText, sortByKey } from "./cite-key";
 
 /**
  * CSV export (LB-03): RFC 4180 with a UTF-8 BOM so Excel reads accents correctly. Analysis
@@ -23,8 +23,11 @@ const COLUMNS = [
   "overview",
 ] as const;
 
-/** Spreadsheets run cells starting with these as formulas; a leading ' makes them text. */
-const FORMULA_START = /^[=+\-@\t\r]/;
+/**
+ * Spreadsheets run cells starting with these as formulas (also after leading spaces, which some
+ * importers trim, and in fullwidth form); a leading ' makes them text.
+ */
+const FORMULA_START = /^\s*[=+\-@＝＋－＠]|^[\t\r\n]/;
 
 function cell(value: string | number | undefined): string {
   if (value === undefined) return "";
@@ -41,17 +44,17 @@ export function csvExport(
   const rows = sortByKey(papers, keys).map((paper) => {
     const analysis = analyses.get(paper.id);
     const authors = paper.authors.map((a) => a.name.trim()).filter(Boolean);
-    const peerReviewed = paper.isPeerReviewed === undefined ? undefined : paper.isPeerReviewed;
     const values: Record<(typeof COLUMNS)[number], string | number | undefined> = {
       cite_key: keys.get(paper.id),
-      title: stripTags(paper.title).trim(),
+      title: plainText(paper.title),
       authors: authors.length ? authors.join("; ") : undefined,
       year: paper.year,
       venue: paper.venue,
       doi: paperDoi(paper),
-      url: paper.url ?? paperUrl(paper),
+      url: paperUrl(paper),
       citations: paper.citationCount,
-      peer_reviewed: peerReviewed === undefined ? undefined : peerReviewed ? "yes" : "no",
+      peer_reviewed:
+        paper.isPeerReviewed === undefined ? undefined : paper.isPeerReviewed ? "yes" : "no",
       use_as: analysis?.useAs,
       relevance: analysis?.relevance,
       why_it_matters: analysis?.whyItMatters,

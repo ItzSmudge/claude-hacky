@@ -4,9 +4,18 @@ import { citeKeys, sortByKey } from "./cite-key";
 import { fetchDoiBibtex } from "./doi";
 
 export { buildEntry, escapeLatex, latexTitle, paperDoi, paperUrl, rekeyEntry } from "./bibtex";
-export { asciiFold, citeKey, citeKeys, familyName, sortByKey, stripTags } from "./cite-key";
+export {
+  asciiFold,
+  citeCommand,
+  citeKey,
+  citeKeys,
+  familyName,
+  plainText,
+  sortByKey,
+  stripTags,
+} from "./cite-key";
 export { csvExport } from "./csv";
-export { citeCommand, latexBibliography } from "./latex";
+export { latexBibliography } from "./latex";
 export { loadSavedLibrary, type LoadResult, type SavedLibrary } from "./library";
 export { markdownReadingList } from "./markdown";
 export { fetchDoiBibtex, normaliseDoi } from "./doi";

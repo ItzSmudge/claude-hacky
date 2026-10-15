@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { fixturePapers } from "@/fixtures";
 import type { Paper } from "@/types/domain";
 import { citeKeys } from "./cite-key";
-import { citeCommand, latexBibliography } from "./latex";
+import { citeCommand } from "./cite-key";
+import { latexBibliography } from "./latex";
 
 const paper = (over: Partial<Paper> = {}): Paper => ({
   id: "p1",
@@ -34,7 +35,7 @@ describe("latexBibliography", () => {
     const papers = [paper()];
     expect(latexBibliography(papers, keysFor(papers))).toBe(
       [
-        "% 1 reference exported from PaperCut. Needs \\usepackage{url}.",
+        "% 1 reference exported from PaperCut. Needs \\usepackage{url}; non-Latin scripts need XeLaTeX or LuaLaTeX.",
         "\\begin{thebibliography}{9}",
         "",
         "\\bibitem{boer2020social}",
@@ -101,5 +102,30 @@ describe("latexBibliography", () => {
       expect(depth).toBeGreaterThanOrEqual(0);
     }
     expect(depth).toBe(0);
+  });
+
+  it("maps Greek, maths symbols and invisible characters so pdflatex compiles", () => {
+    const papers = [
+      paper({ title: "β-amyloid at ≥ 2× dose, Δ ± 5°C, R² − 1​\u0007 ΑΒ", venue: "<J|X>" }),
+    ];
+    const text = latexBibliography(papers, keysFor(papers));
+    expect(text).toContain(
+      "\\newblock $\\beta$-amyloid at $\\geq$ 2$\\times$ dose, $\\Delta$ $\\pm$ 5\\textdegree{}C, R\\textsuperscript{2} - 1 AB.",
+    );
+    expect(text).toContain("\\emph{\\textless{}J\\textbar{}X\\textgreater{}}");
+    expect(text).toMatch(/^[\x09\x0a\x20-\x7e]*$/); // printable ASCII only
+  });
+
+  it("decodes HTML entities and drops non-http(s) links", () => {
+    const papers = [
+      paper({
+        title: "Risk &amp; reward &#8211; a test",
+        doi: undefined,
+        url: "javascript:alert(1)",
+      }),
+    ];
+    const text = latexBibliography(papers, keysFor(papers));
+    expect(text).toContain("\\newblock Risk \\& reward – a test.");
+    expect(text).not.toContain("javascript");
   });
 });

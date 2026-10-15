@@ -122,7 +122,7 @@ describe("buildEntry", () => {
     );
     expect(
       buildEntry(paper({ title: '<mml:math id="m1">x</mml:math> p < 0.05 and q > 1' }), "k"),
-    ).toContain("title = {x p < 0.05 and q > 1}");
+    ).toContain("title = {x p \\textless{} 0.05 and q \\textgreater{} 1}");
   });
 
   it("normalises a URL-form DOI and drops urls that would break \\url", () => {

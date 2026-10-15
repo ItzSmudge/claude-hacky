@@ -36,7 +36,7 @@ async function Library({ params }: Pick<PageProps<"/app/p/[projectId]/library">,
     return (
       <>
         {heading}
-        <p role="alert" className="text-muted-foreground">
+        <p className="text-muted-foreground">
           Couldn&apos;t load your library. Refresh the page to try again.
         </p>
       </>
@@ -60,7 +60,11 @@ async function Library({ params }: Pick<PageProps<"/app/p/[projectId]/library">,
       {papers.length === 0 ? (
         <div className="flex flex-col items-start gap-4 rounded-2xl border border-border bg-card p-5 shadow-paper md:p-6">
           <p>Nothing saved yet. Swipe right on papers to collect them here.</p>
-          <Button asChild size="lg" className="rounded-xl px-4">
+          <Button
+            asChild
+            size="lg"
+            className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+          >
             <Link href={deckHref}>Back to swiping</Link>
           </Button>
         </div>
@@ -73,13 +77,13 @@ async function Library({ params }: Pick<PageProps<"/app/p/[projectId]/library">,
 
 function LibrarySkeleton() {
   return (
-    <div aria-busy className="flex flex-col gap-6">
+    <div role="status" className="flex flex-col gap-6">
       <span className="sr-only">Loading your library…</span>
-      <div className="flex flex-col gap-2">
-        <Skeleton className="h-8 w-40" />
-        <Skeleton className="h-5 w-72" />
+      <div aria-hidden className="flex flex-col gap-2">
+        <Skeleton className="h-8 w-40 motion-reduce:animate-none" />
+        <Skeleton className="h-5 w-72 motion-reduce:animate-none" />
       </div>
-      <Skeleton className="h-96 rounded-2xl" />
+      <Skeleton aria-hidden className="h-96 rounded-2xl motion-reduce:animate-none" />
     </div>
   );
 }
