@@ -4,9 +4,12 @@ import { z } from "zod";
 import { DeckSkeleton } from "@/components/swipe/deck-skeleton";
 import { PersistedSwipeDeck } from "@/components/swipe/persisted-swipe-deck";
 import { fixturePapers, fixtureProject } from "@/fixtures";
+import { extractFeatures, type SwipeSample } from "@/lib/ranking";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import type { SwipeDecision } from "@/types/domain";
 
-// Owner: swipe (SW-*). Papers are fixtures until SW-04 (queue); swipes persist via SW-05.
+// Owner: swipe (SW-*). Papers are fixtures until SW-04 (queue); swipes persist via SW-05;
+// earlier swipes seed the ranking (RK-02).
 export default function DeckPage({ params }: PageProps<"/app/p/[projectId]">) {
   // Clip the fling at the screen edge (bleeds into main's gutter) without cutting focus rings or shadows.
   return (
@@ -23,35 +26,52 @@ export default function DeckPage({ params }: PageProps<"/app/p/[projectId]">) {
 
 async function Deck({ params }: Pick<PageProps<"/app/p/[projectId]">, "params">) {
   const { projectId } = await params;
-  const swiped = await swipedPaperIds(projectId);
+  const history = await swipeHistory(projectId);
+  const swiped = new Set(history.map((s) => s.paperId));
+  // Features of papers already decided, so a reload resumes the learnt order. Only reached after
+  // a request-time read (history is empty otherwise), so the clock read here is allowed.
+  const initialHistory: SwipeSample[] = history.flatMap(({ paperId, decision }) => {
+    const entry = fixturePapers.find((item) => item.paper.id === paperId);
+    if (!entry) return [];
+    const features = extractFeatures(entry.paper, { credibility: entry.credibility });
+    return [{ features: features.map((f) => f.id), decision }];
+  });
   return (
     <PersistedSwipeDeck
       key={projectId}
       projectId={projectId}
       items={fixturePapers.filter((item) => !swiped.has(item.paper.id))}
+      initialHistory={initialHistory}
       claims={fixtureProject.context.claims}
       libraryHref={`/app/p/${projectId}/library`}
     />
   );
 }
 
-/** Papers the signed-in user already swiped here, so a reload resumes the deck. Empty on any failure. */
-async function swipedPaperIds(projectId: string): Promise<Set<string>> {
-  if (!z.uuid().safeParse(projectId).success) return new Set();
+/** The signed-in user's swipes here, oldest first, so a reload resumes the deck. Empty on any failure. */
+async function swipeHistory(
+  projectId: string,
+): Promise<{ paperId: string; decision: SwipeDecision }[]> {
+  if (!z.uuid().safeParse(projectId).success) return [];
   // Request time only: supabase-js reads the clock to check token expiry.
   await connection();
   const supabase = await getSupabaseServerClient();
   const { data: auth } = await supabase.auth.getClaims();
   const userId = auth?.claims.sub;
-  if (!userId) return new Set();
+  if (!userId) return [];
   const { data, error } = await supabase
     .from("swipes")
-    .select("paper_id")
+    .select("paper_id, decision")
     .eq("project_id", projectId)
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .order("created_at", { ascending: true });
   if (error) {
     console.error("[deck] reading swipes failed", error.code, error.message);
-    return new Set();
+    return [];
   }
-  return new Set(data.map((row) => row.paper_id));
+  return data.flatMap((row) =>
+    row.decision === "save" || row.decision === "skip"
+      ? [{ paperId: row.paper_id, decision: row.decision }]
+      : [],
+  );
 }

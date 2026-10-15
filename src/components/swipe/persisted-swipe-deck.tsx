@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { SwipeRequest } from "@/lib/api-schemas";
-import type { ProjectContext } from "@/types/domain";
+import { extractFeatures, rankItems, type SwipeSample } from "@/lib/ranking";
+import type { ProjectContext, SwipeDecision } from "@/types/domain";
 import { DetailSheet } from "./detail-sheet";
 import { SwipeDeck, type DeckItem, type SwipeDeckHandle } from "./swipe-deck";
 import { classifyStatus, createSwipeSync, type SendResult, type SwipeOp } from "./swipe-sync";
 
 const TITLE_MAX = 60;
+const NO_HISTORY: SwipeSample[] = [];
 /** Top so a toast never covers the deck controls on a phone. */
 const TOAST_POSITION = "top-center";
 /** sonner's buttons are 24px tall; inline style beats its stylesheet. */
@@ -94,8 +96,11 @@ export function PersistedSwipeDeck({
   items,
   claims,
   libraryHref,
+  initialHistory = NO_HISTORY,
 }: {
   projectId: string;
+  /** Swipes from earlier visits (oldest first), so the learnt order survives a reload (RK-02). */
+  initialHistory?: SwipeSample[];
   items: DeckItem[];
   claims: ProjectContext["claims"];
   libraryHref?: string;
@@ -113,6 +118,34 @@ export function PersistedSwipeDeck({
     persist.current(op);
   };
 
+  // RK-02: re-rank upcoming cards from this session's swipes (plus earlier ones). Undo pops.
+  const [decisions, setDecisions] = useState<{ paperId: string; decision: SwipeDecision }[]>([]);
+  const featureIds = useMemo(
+    () =>
+      new Map(
+        items.map((i) => [
+          i.paper.id,
+          extractFeatures(i.paper, { credibility: i.credibility }).map((f) => f.id),
+        ]),
+      ),
+    [items],
+  );
+  const ranked = useMemo(() => {
+    const decided = new Set(decisions.map((d) => d.paperId));
+    const history: SwipeSample[] = [
+      ...initialHistory,
+      ...decisions.flatMap(({ paperId, decision }) => {
+        const features = featureIds.get(paperId);
+        return features ? [{ features, decision }] : [];
+      }),
+    ];
+    return rankItems(
+      items.filter((i) => !decided.has(i.paper.id)),
+      (i) => featureIds.get(i.paper.id) ?? [],
+      history,
+    );
+  }, [items, featureIds, decisions, initialHistory]);
+
   const deck = useRef<SwipeDeckHandle>(null);
   // Item stays set while the sheet animates closed.
   const [details, setDetails] = useState<{ item: DeckItem; open: boolean } | null>(null);
@@ -121,11 +154,17 @@ export function PersistedSwipeDeck({
     <>
       <SwipeDeck
         ref={deck}
-        items={items}
+        items={ranked}
         claims={claims}
         libraryHref={libraryHref}
-        onDecide={(paperId, decision) => enqueue({ paperId, decision })}
-        onUndo={(paperId) => enqueue({ paperId, decision: null })}
+        onDecide={(paperId, decision) => {
+          enqueue({ paperId, decision });
+          setDecisions((d) => [...d, { paperId, decision }]);
+        }}
+        onUndo={(paperId) => {
+          enqueue({ paperId, decision: null });
+          setDecisions((d) => (d.at(-1)?.paperId === paperId ? d.slice(0, -1) : d));
+        }}
         onDetails={(paperId) => {
           const item = items.find((i) => i.paper.id === paperId);
           if (item) setDetails({ item, open: true });
