@@ -24,14 +24,16 @@ export function parseExcludeTerms(params: URLSearchParams): string[] | undefined
 
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+// Lookarounds instead of \b so terms ending in symbols ("c++") still match whole words.
+const wholeWord = (term: string) =>
+  new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(term)}(?![\\p{L}\\p{N}])`, "iu");
+
 /** True if any term appears as a whole word in the title, abstract or topics (case-insensitive). */
-export function matchesExcluded(paper: Paper, terms: string[]): boolean {
+export function matchesExcluded(paper: Paper, terms: string[] | RegExp[]): boolean {
   if (!terms.length) return false;
+  const patterns = terms.map((t) => (typeof t === "string" ? wholeWord(t) : t));
   const text = [paper.title, paper.abstract ?? "", ...paper.topics].join(" \n ");
-  return terms.some((term) =>
-    // Lookarounds instead of \b so terms ending in symbols ("c++") still match.
-    new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(term)}(?![\\p{L}\\p{N}])`, "iu").test(text),
-  );
+  return patterns.some((pattern) => pattern.test(text));
 }
 
 export interface SearchDeps {
@@ -52,7 +54,7 @@ export async function searchPapers(
     page: request.page,
     perPage: request.perPage,
   });
-  const exclude = request.exclude ?? [];
+  const exclude = (request.exclude ?? []).map(wholeWord);
   const kept = papers.filter((paper) => !matchesExcluded(paper, exclude));
 
   if (cache && kept.length) {

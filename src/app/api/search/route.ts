@@ -18,6 +18,11 @@ const error = (status: number, message: string, details?: unknown, headers?: Hea
   );
 
 export async function GET(request: Request) {
+  // Signed-in users only (anonymous sessions count): every search spends shared OpenAlex budget.
+  const supabase = await getSupabaseServerClient();
+  const { data } = await supabase.auth.getClaims();
+  if (!data?.claims.sub) return error(401, "Sign in to search");
+
   const params = new URL(request.url).searchParams;
   const parsed = searchRequestSchema.safeParse({
     q: params.get("q") ?? undefined,
@@ -30,11 +35,6 @@ export async function GET(request: Request) {
   });
   if (!parsed.success) return error(400, "Invalid search", z.treeifyError(parsed.error));
 
-  // Signed-in users only (anonymous sessions count): every search spends shared OpenAlex budget.
-  const supabase = await getSupabaseServerClient();
-  const { data } = await supabase.auth.getClaims();
-  if (!data?.claims.sub) return error(401, "Sign in to search");
-
   const signal = AbortSignal.any([request.signal, AbortSignal.timeout(DEADLINE_MS)]);
   try {
     const response = await searchPapers(parsed.data, {
@@ -43,7 +43,10 @@ export async function GET(request: Request) {
     });
     return NextResponse.json<SearchResponse>(response);
   } catch (err) {
-    if (!(err instanceof OpenAlexError)) throw err;
+    if (!(err instanceof OpenAlexError)) {
+      console.error("[search] unexpected failure", err);
+      return error(500, "Paper search failed");
+    }
     if (err.retryable || err.status === 0) {
       return error(503, "Paper search is busy — try again in a moment", undefined, {
         "Retry-After": "5",
