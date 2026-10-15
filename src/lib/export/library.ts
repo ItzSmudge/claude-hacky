@@ -1,11 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { paperAnalysisSchema, paperSchema } from "@/lib/api-schemas";
+import { paperAnalysisSchema, paperSchema, projectContextSchema } from "@/lib/api-schemas";
 import type { Database } from "@/types/database";
-import type { Paper, PaperAnalysis } from "@/types/domain";
+import type { Paper, PaperAnalysis, ProjectContext } from "@/types/domain";
 
 /** A project's saved library: what every export and the library page render from. */
 export interface SavedLibrary {
   title: string;
+  /** The project's claims (from its parsed brief); empty until a brief has been analysed. */
+  claims: ProjectContext["claims"];
   papers: Paper[];
   analyses: Map<string, PaperAnalysis>;
 }
@@ -23,7 +25,7 @@ export async function loadSavedLibrary(
 ): Promise<LoadResult> {
   const { data: project, error: projectError } = await supabase
     .from("projects")
-    .select("title")
+    .select("title, context")
     .eq("id", projectId)
     .maybeSingle();
   if (projectError) return failed("reading project", projectError);
@@ -58,7 +60,12 @@ export async function loadSavedLibrary(
   }
   return {
     ok: true,
-    library: { title: project.title, papers: [...papers.values()], analyses: byPaper },
+    library: {
+      title: project.title,
+      claims: projectContextSchema.safeParse(project.context).data?.claims ?? [],
+      papers: [...papers.values()],
+      analyses: byPaper,
+    },
   };
 }
 

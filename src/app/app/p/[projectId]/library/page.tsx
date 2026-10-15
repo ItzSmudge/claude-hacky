@@ -4,12 +4,15 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { z } from "zod";
 import { ExportPanel } from "@/components/library/export-panel";
+import type { LibraryItem } from "@/components/library/library-groups";
+import { SavedPaperList } from "@/components/library/saved-paper-list";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { computeCredibility } from "@/lib/credibility";
 import { citeKeys, loadSavedLibrary, sortByKey } from "@/lib/export";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
-// Owner: library (LB-*). LB-03: export panel; LB-01 adds the saved-paper list above it.
+// Owner: library (LB-*). LB-01: saved papers by use / claim; LB-03: export panel below.
 export default function LibraryPage({ params }: PageProps<"/app/p/[projectId]/library">) {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
@@ -43,9 +46,15 @@ async function Library({ params }: Pick<PageProps<"/app/p/[projectId]/library">,
     );
   }
 
-  const { title, papers } = loaded.library;
+  const { title, claims, papers, analyses } = loaded.library;
   const keys = citeKeys(papers);
   const sortedKeys = sortByKey(papers, keys).map((p) => keys.get(p.id)!);
+  const items: LibraryItem[] = papers.map((paper) => ({
+    paper,
+    analysis: analyses.get(paper.id),
+    credibility: computeCredibility(paper),
+    citeKey: keys.get(paper.id)!,
+  }));
   const deckHref = `/app/p/${projectId}`;
   return (
     <>
@@ -69,7 +78,10 @@ async function Library({ params }: Pick<PageProps<"/app/p/[projectId]/library">,
           </Button>
         </div>
       ) : (
-        <ExportPanel projectId={projectId} citeKeys={sortedKeys} />
+        <>
+          <SavedPaperList projectId={projectId} items={items} claims={claims} />
+          <ExportPanel projectId={projectId} citeKeys={sortedKeys} />
+        </>
       )}
     </>
   );
