@@ -1,7 +1,7 @@
 import "server-only";
 
 import Anthropic from "@anthropic-ai/sdk";
-import { requireServerVar, serverEnv } from "@/lib/env";
+import { serverEnv } from "@/lib/env";
 import { AiConfigError } from "./errors";
 import { generateJson, type JsonRequest, type JsonResult } from "./json";
 
@@ -12,18 +12,22 @@ let client: Anthropic | undefined;
 
 function getClient(): Anthropic {
   if (client) return client;
-  let apiKey: string;
-  try {
-    apiKey = requireServerVar("ANTHROPIC_API_KEY");
-  } catch {
+  const apiKey = serverEnv().ANTHROPIC_API_KEY;
+  if (!apiKey) {
     throw new AiConfigError(
       "ANTHROPIC_API_KEY is not set. Add it to .env.local (see .env.example).",
     );
   }
-  // The SDK retries 408/409/429/5xx and connection errors with backoff.
-  client = new Anthropic({ apiKey, maxRetries: 3, timeout: 120_000 });
+  // The SDK retries 408/409/429/5xx, timeouts and connection errors with backoff.
+  client = new Anthropic({ apiKey });
   return client;
 }
+
+/** Per-attempt timeout and retries; worst case ≈ (maxRetries + 1) × timeout, doubled by a repair. */
+const LIMITS: Record<ModelTier, { timeout: number; maxRetries: number }> = {
+  fast: { timeout: 60_000, maxRetries: 2 },
+  smart: { timeout: 120_000, maxRetries: 2 },
+};
 
 export function modelFor(tier: ModelTier): string {
   const env = serverEnv();
@@ -38,5 +42,5 @@ export async function askJson<T>({
   tier,
   ...request
 }: JsonRequest<T> & { tier: ModelTier }): Promise<JsonResult<T>> {
-  return generateJson(getClient(), modelFor(tier), request);
+  return generateJson(getClient(), modelFor(tier), { ...LIMITS[tier], ...request });
 }

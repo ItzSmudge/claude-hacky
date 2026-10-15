@@ -27,9 +27,16 @@ export interface JsonRequest<T> {
   maxTokens?: number;
   /** Omit to use the model's default (Haiku 5.5: medium, Sonnet 5.5: high). */
   effort?: "low" | "medium" | "high";
-  /** Prompt-cache the system prompt, e.g. project context reused across many papers. */
+  /**
+   * Prompt-cache the system prompt, e.g. project context reused across many papers. Prompts
+   * shorter than the model's minimum cacheable length are not cached (cache_read stays 0).
+   */
   cacheSystem?: boolean;
+  /** Pass a route-level signal (e.g. `AbortSignal.timeout(…)`) to bound the total time. */
   signal?: AbortSignal;
+  /** Per-attempt timeout in ms and SDK retry count; `askJson` sets defaults per tier. */
+  timeout?: number;
+  maxRetries?: number;
 }
 
 export interface JsonUsage {
@@ -50,6 +57,7 @@ export interface JsonResult<T> {
 const DEFAULT_MAX_TOKENS = 16_000;
 
 // Models that accept server-side refusal fallback (`fallbacks: "default"`). Haiku has none.
+// Matched by exact id: a dated or other alias in ANTHROPIC_MODEL_* turns fallback off.
 const FALLBACK_MODELS = new Set([
   "claude-sonnet-5-5",
   "claude-opus-5-5",
@@ -80,7 +88,11 @@ function check<T>(message: BetaMessage, schema: z.ZodType<T>): Attempt<T> {
       message.stop_details?.explanation ?? null,
     );
   }
-  if (message.stop_reason === "max_tokens") throw new AiOutputError("truncated");
+  if (
+    message.stop_reason === "max_tokens" ||
+    message.stop_reason === "model_context_window_exceeded"
+  )
+    throw new AiOutputError("truncated");
 
   const text = message.content
     .flatMap((block) => (block.type === "text" ? [block.text] : []))
@@ -133,7 +145,7 @@ export async function generateJson<T>(
   const send = async (messages: BetaMessageParam[]) => {
     const message = await client.beta.messages.create(
       { ...base, messages },
-      { signal: request.signal },
+      { signal: request.signal, timeout: request.timeout, maxRetries: request.maxRetries },
     );
     addUsage(usage, message.usage);
     return message;

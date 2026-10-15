@@ -11,7 +11,10 @@ export const NOT_STATED = "not stated";
 
 export const countWords = (text: string) => text.split(/\s+/).filter(Boolean).length;
 
-/** Non-empty text of at most `max` words. JSON Schema can't express this, so zod enforces it. */
+/**
+ * Non-empty text of at most `max` words. JSON Schema can't express a word count, so zod enforces
+ * it and the description tells the model the limit up front (avoiding a repair call).
+ */
 export const words = (max: number) =>
   z
     .string()
@@ -21,7 +24,8 @@ export const words = (max: number) =>
       const n = countWords(text);
       if (n > max)
         ctx.addIssue({ code: "custom", message: `Use at most ${max} words (got ${n}).` });
-    });
+    })
+    .describe(`At most ${max} words.`);
 
 /** Like `words`, but tells the model to write "not stated" when the source is silent. */
 export const notStated = (max: number) =>

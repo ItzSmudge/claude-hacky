@@ -179,6 +179,31 @@ describe("generateJson", () => {
     expect(create).toHaveBeenCalledTimes(1);
   });
 
+  it("throws truncated output when the context window is exceeded", async () => {
+    const { client, create } = fakeClient({
+      stop_reason: "model_context_window_exceeded",
+    } as Reply);
+    const error = await generateJson(client, "claude-haiku-5-5", base).catch((e: unknown) => e);
+    expect((error as AiOutputError).reason).toBe("truncated");
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes timeout and maxRetries as request options", async () => {
+    const { client, create } = fakeClient({ text: '{"title":"T","summary":"ok"}' });
+    await generateJson(client, "claude-haiku-5-5", { ...base, timeout: 1_000, maxRetries: 1 });
+    expect(create.mock.calls[0] as unknown as [unknown, object]).toEqual([
+      expect.anything(),
+      expect.objectContaining({ timeout: 1_000, maxRetries: 1 }),
+    ]);
+  });
+
+  it("tells the model the word limit in the JSON schema", async () => {
+    const { client, create } = fakeClient({ text: '{"title":"T","summary":"ok"}' });
+    await generateJson(client, "claude-haiku-5-5", base);
+    const format = (requestOf(create).output_config as { format: { schema: unknown } }).format;
+    expect(JSON.stringify(format.schema)).toContain("At most 5 words.");
+  });
+
   it("applies the same checks to the repair reply", async () => {
     const { client } = fakeClient({ text: "nope" }, { stop_reason: "refusal" } as Reply);
     await expect(generateJson(client, "claude-haiku-5-5", base)).rejects.toBeInstanceOf(
