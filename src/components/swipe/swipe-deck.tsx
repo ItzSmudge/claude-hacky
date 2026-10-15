@@ -71,6 +71,15 @@ function safely<A extends unknown[]>(fn: ((...args: A) => void) | undefined, ...
   }
 }
 
+/** A short tick on phones that support it (Android Chrome; iOS ignores it). Never required. */
+function haptic() {
+  try {
+    navigator.vibrate?.(10);
+  } catch {
+    // Unsupported or blocked by permissions policy: haptics are optional.
+  }
+}
+
 /** Resolves when the animation completes, is stopped, or the timeout passes — whichever is first. */
 function settled(start: (done: () => void) => void) {
   return new Promise<void>((resolve) => {
@@ -217,6 +226,7 @@ export function SwipeDeck({
       `${decision === "save" ? "Saved" : "Skipped"}: ${paper.title}. ${left - 1} left.`,
     );
     if (moveFocus) regionRef.current?.focus();
+    haptic();
     safely(onDecide, paper.id, decision);
   }
 
@@ -240,6 +250,7 @@ export function SwipeDeck({
     }
     dispatch({ type: "undo" });
     setAnnouncement(`Restored: ${deck.known[last.paperId]?.paper.title ?? "paper"}.`);
+    haptic();
     safely(onUndo, last.paperId, last.decision);
   }
 
@@ -328,7 +339,7 @@ export function SwipeDeck({
         role="group"
         tabIndex={-1}
         aria-label={top ? `Paper ${deck.cursor + 1} of ${total}` : "No papers left"}
-        className="grid rounded-2xl *:[grid-area:1/1] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+        className="grid overscroll-x-contain rounded-2xl *:[grid-area:1/1] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
       >
         {stack.map((item, i) => {
           const depth = stack.length - i;
@@ -369,7 +380,7 @@ export function SwipeDeck({
               }}
               onDragEnd={endDrag}
               style={{ x, y, rotate, opacity, touchAction: "pan-y" }}
-              className="relative cursor-grab select-none active:cursor-grabbing"
+              className="relative cursor-grab select-none [-webkit-tap-highlight-color:transparent] active:cursor-grabbing"
             >
               <PaperCard {...top} claims={claims} onDetails={onDetails ? details : undefined} />
               <motion.span
@@ -410,13 +421,17 @@ export function SwipeDeck({
         )}
       </div>
 
-      <DeckControls
-        onSkip={() => canCommit() && void commit("skip")}
-        onUndo={undo}
-        onSave={() => canCommit() && void commit("save")}
-        canUndo={canUndo(deck)}
-        disabled={!top}
-      />
+      {/* Sticky so the buttons are on screen without scrolling on phones and short screens — the
+          only input with reduced motion. Last in the deck, so at the end it rests in normal flow. */}
+      <div className="sticky bottom-0 z-10 -mx-4 border-t border-border bg-background/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-paper backdrop-blur-sm md:mx-0 md:rounded-2xl md:border md:px-3">
+        <DeckControls
+          onSkip={() => canCommit() && void commit("skip")}
+          onUndo={undo}
+          onSave={() => canCommit() && void commit("save")}
+          canUndo={canUndo(deck)}
+          disabled={!top}
+        />
+      </div>
 
       <p aria-live="polite" className="sr-only">
         {announcement}

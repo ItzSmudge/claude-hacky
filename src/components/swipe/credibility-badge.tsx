@@ -33,7 +33,7 @@ export function CredibilityBadge({ credibility }: { credibility: Credibility }) 
       <PopoverTrigger
         className={cn(
           // 44px hit area without changing the visual size.
-          "relative inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-sm font-medium tabular-nums after:absolute after:-inset-2 after:content-['']",
+          "relative inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-sm font-medium tabular-nums after:absolute after:-inset-2.5 after:content-['']",
           "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card focus-visible:outline-none",
           "hc:border-2 hc:border-primary hc:bg-card",
           low ? "bg-warning/25 text-foreground" : "bg-accent text-accent-foreground",
