@@ -1,6 +1,6 @@
 # 00 — Foundation (blocking)
 
-**Owner:** Dev A; Thomas for F-11
+**Owner:** Dev A; ItzSmudge (repo admin + Vercel owner) for F-07 settings and F-11
 **Owned paths:** repo root config, `scripts/`, `.github/`, `.claude/`, `supabase/`, `src/types`, `src/lib/{env,api-schemas}.ts`, `src/lib/supabase`, `src/fixtures`
 **Depends on:** —
 **Can start with fixtures?** n/a
@@ -11,11 +11,11 @@
 - [x] F-04 `.env.example` + `lib/env.ts`
 - [x] F-05 Husky/commitlint/lint-staged
 - [x] F-06 CI + PR template
-- [~] F-07 `setup-github.sh` (dev default, rulesets) — script written; Thomas to run it
+- [~] F-07 `setup-github.sh` (dev default, rulesets) — `dev` created by Mr-Moody; ItzSmudge (only admin) to run the script for default branch, merge settings and rulesets
 - [x] F-08 Directory skeleton + `domain.ts` + `api-schemas.ts`
 - [x] F-09 `fixtures/papers.json` (20 real OpenAlex papers + analyses)
 - [x] F-10 Supabase local config + migration + seed + types + anon auth + `write-local-env.mjs`
-- [ ] F-11 Hosted Supabase + Vercel (main only) + domains + Cloudflare script + prod smoke test (Thomas)
+- [ ] F-11 Hosted Supabase + Vercel (main only) + domains + Cloudflare script + prod smoke test (ItzSmudge)
 - [x] F-12 `.claude/` settings, skills (incl. design-system from §2b), agents, `.worktreeinclude`, `wt.sh`, CLAUDE.md
 - [x] F-13 Placeholder pages for every route
 - [x] F-14 Design tokens, fonts, dark-mode toggle, themed primitives, `/app/_styleguide`

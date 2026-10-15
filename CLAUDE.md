@@ -31,7 +31,7 @@ Product + architecture: docs/architecture.md. Tasks: docs/checklists/. Contracts
 - src/types/domain.ts and api-schemas are frozen: changes need a `chore(contracts)` PR, merged immediately.
 - No new dependencies in feature PRs — open `chore(deps)` PR instead.
 - DB changes only as new files in supabase/migrations + `pnpm db:types`; one migration PR at a time.
-- `dev → main` release PRs are merged by Thomas only (Vercel Hobby deploys require it).
+- `dev → main` release PRs are merged by **ItzSmudge** only — they own the repo and the Vercel Hobby project, and Hobby only deploys private-repo commits authored by the Vercel owner. Mr-Moody and the others have write access (no admin).
 
 ## Design (consistency across all agents)
 

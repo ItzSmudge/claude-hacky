@@ -16,4 +16,4 @@ description: Ship the current PaperCut task branch as a PR into dev — runs che
    gh pr create --base dev --title "<type>(<scope>): <summary>" --body-file <filled .github/pull_request_template.md>
    ```
    Title = the squash commit, so it must be conventional. Body: task IDs, spec + plan links, what changed, screenshots for UI (light + dark), how to test, shared-things checkboxes.
-7. Post the PR link back to the user. Don't merge it yourself unless asked; `dev → main` releases are merged by Thomas only.
+7. Post the PR link back to the user. Don't merge it yourself unless asked; `dev → main` releases are merged by ItzSmudge (repo + Vercel owner) only.

@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
-# One-time GitHub repo setup (repo admin only). Idempotent-ish: safe to re-run.
+# One-time GitHub repo setup — must be run by a repo ADMIN (ItzSmudge). Safe to re-run.
+# Collaborators are optional (all teammates already have write access).
 # usage: bash scripts/setup-github.sh [collaborator1 collaborator2 collaborator3]
 set -euo pipefail
 command -v gh >/dev/null || { echo "❌ gh CLI required"; exit 1; }
 REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner)"
 echo "→ Configuring $REPO"
+if [ "$(gh api "repos/$REPO" -q .permissions.admin)" != "true" ]; then
+  echo "❌ You need admin on $REPO (only the owner, ItzSmudge, has it). Ask them to run this script."
+  exit 1
+fi
 
 # 1. dev branch from main, default branch = dev
 MAIN_SHA="$(gh api "repos/$REPO/git/ref/heads/main" -q .object.sha)"
@@ -65,7 +70,7 @@ JSON
     echo "⚠️  Could not create ruleset '$name' (private repo without GitHub Pro?):"
     echo "    $(echo "$out" | head -c 300)"
     echo "    Enforcement falls back to husky hooks + CI + .claude/settings.json deny rules."
-    echo "    Thomas: claim GitHub Pro via the Student Developer Pack to enable rulesets."
+    echo "    Repo owner: claim GitHub Pro via the Student Developer Pack to enable rulesets."
   fi
 }
 ruleset "protect-main" main 1
