@@ -15,7 +15,9 @@ export default function DeckPage({ params }: PageProps<"/app/p/[projectId]">) {
   return (
     <div className="-mx-4 overflow-x-clip px-4 md:-mx-8 md:px-8">
       <div className="mx-auto flex w-full max-w-md flex-col gap-4">
-        <h1 className="font-display text-3xl font-semibold text-primary">{fixtureProject.title}</h1>
+        <h1 className="font-display text-2xl font-semibold text-primary md:text-3xl">
+          {fixtureProject.title}
+        </h1>
         <Suspense fallback={<DeckSkeleton />}>
           <Deck params={params} />
         </Suspense>

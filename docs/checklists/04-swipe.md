@@ -10,4 +10,4 @@
 - [x] SW-03 (PR #6) Detail sheet (full abstract, methodology, limitations, links)
 - [ ] SW-04 Queue state: prefetch/analyse 3 ahead, skeletons, empty/"load more" states
 - [x] SW-05 (PR #5) Persist swipes to Supabase; optimistic UI
-- [ ] SW-06 Mobile polish + reduced-motion fallback (buttons)
+- [x] SW-06 (PR #9) Mobile polish + reduced-motion fallback (buttons)
