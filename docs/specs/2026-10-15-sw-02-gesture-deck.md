@@ -4,17 +4,18 @@
 
 ## Units
 
-| File (`src/components/swipe/`) | Job                                                                                                                                                                     |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `deck-state.ts` (+ test)       | Pure reducer `{ order, cursor, history[] }`; actions `decide`, `undo`, `replaceUpcoming(ids)`; selectors `current`, `upcoming(n)`, `canUndo`, `remaining`. Dedupes ids. |
-| `gesture.ts` (+ test)          | `classifyGesture({ x, y, vx, vy, width })` → `"save" \| "skip" \| "details" \| null`.                                                                                   |
-| `swipe-deck.tsx` (client)      | Top card draggable + 2 peeking cards, stamps, keyboard, live region, empty state.                                                                                       |
-| `deck-controls.tsx`            | Skip · Undo · Save buttons.                                                                                                                                             |
+| File (`src/components/swipe/`) | Job                                                                                                                                                                                                                                                                                             |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deck-state.ts` (+ test)       | Pure reducer `{ order, cursor, history[], known }` (`known` keeps every item ever seen so undo works even if `items` later drops a decided paper); actions `decide`, `undo`, `replaceUpcoming(items)`; selectors `current`, `upcoming(n)`, `canUndo`, `remaining`, `lastDecision`. Dedupes ids. |
+| `gesture.ts` (+ test)          | `classifyGesture({ x, y, vx, vy, width })` → `"save" \| "skip" \| "details" \| null`.                                                                                                                                                                                                           |
+| `swipe-deck.tsx` (client)      | Top card draggable + 2 peeking cards, stamps, keyboard, live region, empty state.                                                                                                                                                                                                               |
+| `paper-card.tsx` (modify)      | Optional `onDetails` → the "Details" hint becomes a real ≥ 44px button.                                                                                                                                                                                                                         |
+| `deck-controls.tsx`            | Skip · Undo · Save buttons.                                                                                                                                                                                                                                                                     |
 
 ```ts
 // DeckItem = { paper: Paper; analysis: PaperAnalysis; credibility: Credibility } (same shape as FixtureEntry)
 <SwipeDeck items={DeckItem[]} claims={ProjectContext["claims"]}
-  onDecide?(paperId, decision) onUndo?(paperId, decision) onDetails?(paperId) onEmpty?() />
+  onDecide?(paperId, decision) onUndo?(paperId, decision) onDetails?(paperId) onEmpty?() libraryHref? />
 ```
 
 `/app/p/[projectId]` renders it with fixtures inside `<Suspense>`.
@@ -22,9 +23,9 @@
 ## Interaction
 
 - **Drag (top card):** `x`/`y` motion values; rotate ±12° over ±200px; SAVED (teal) / SKIP (`challenges`) stamp opacity 0→1 over 40–120px. Spring stiffness 300, damping 30.
-- **Commit:** save/skip if |x| > 30% of card width, or |vx| > 500 px/s with |x| ≥ 40. Details if (y < −100 or vy < −600) and |y| > 1.2·|x|. Else snap back. Down never commits.
+- **Commit:** save/skip if |x| > 30% of card width, or |vx| > 500 px/s with |x| ≥ 40. Details if (y < −100, or vy < −600 with |y| ≥ 40) and |y| > 1.2·|x|. Else snap back. Down never commits.
 - **Exit:** card flies off in that direction keeping velocity; decision dispatched on completion. Details = snap back + `onDetails` (card stays).
-- **Interactive children:** drag starts via `useDragControls` (`dragListener={false}`) only if the pointerdown target is not inside `button, a, [role=dialog]`. Card uses `touch-action: pan-y` so the page still scrolls.
+- **Interactive children:** drag starts via `useDragControls` (`dragListener={false}`) only if the pointerdown target is not inside `button, a, [role=dialog]`. Card uses `touch-action: pan-y` so the page still scrolls: on touch, vertical moves scroll the page (pointer cancel → snap back, no decision) and details open from the card's Details button; mouse/pen drag-up still opens details.
 - **Keyboard (window):** → save, ← skip, ↑ details, Z undo. Ignored with Ctrl/Meta/Alt, `defaultPrevented`, or target in `input, textarea, [contenteditable], [role=dialog]`. Space/Enter never handled (Space reserved for AX-02).
 - **Busy lock:** input ignored while a card animates (~250ms).
 - **Undo (full history):** last card re-enters from the side it left, springs to centre; `onUndo` fires. Available from the empty state.
@@ -32,7 +33,7 @@
 - **Back cards:** next two at scale 0.96/0.92, y +8/+16px, `inert` + `aria-hidden`; spring forward when the top card leaves.
 - **Screen reader / focus:** polite live region — "Saved: ‹title›. 14 left." / "Skipped: …" / "Restored: …". Deck region labelled "Paper 6 of 20"; if focus was inside the departed card it moves to that region.
 - **Reduced motion:** no drag/rotation/fling; 150ms cross-fade; stamp flashes in place. Keys and buttons unchanged.
-- **Empty:** paper-card-shaped panel "You've been through every paper." + Undo + Library link; `onEmpty` fires once.
+- **Empty:** paper-card-shaped panel "You've been through every paper." + Undo + Library link; `onEmpty` fires once each time the deck becomes empty.
 
 ## Edge cases
 
