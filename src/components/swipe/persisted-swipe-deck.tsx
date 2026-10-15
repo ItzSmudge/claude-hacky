@@ -97,8 +97,11 @@ export function PersistedSwipeDeck({
   claims,
   libraryHref,
   initialHistory = NO_HISTORY,
+  now,
 }: {
   projectId: string;
+  /** Server request time (ISO), so year features match `initialHistory`'s. */
+  now?: string;
   /** Swipes from earlier visits (oldest first), so the learnt order survives a reload (RK-02). */
   initialHistory?: SwipeSample[];
   items: DeckItem[];
@@ -125,10 +128,13 @@ export function PersistedSwipeDeck({
       new Map(
         items.map((i) => [
           i.paper.id,
-          extractFeatures(i.paper, { credibility: i.credibility }).map((f) => f.id),
+          extractFeatures(i.paper, {
+            credibility: i.credibility,
+            now: now ? new Date(now) : undefined,
+          }).map((f) => f.id),
         ]),
       ),
-    [items],
+    [items, now],
   );
   const ranked = useMemo(() => {
     const decided = new Set(decisions.map((d) => d.paperId));
@@ -157,13 +163,14 @@ export function PersistedSwipeDeck({
         items={ranked}
         claims={claims}
         libraryHref={libraryHref}
+        // Ranking history first: a failing save must not leave it out of step with the deck.
         onDecide={(paperId, decision) => {
-          enqueue({ paperId, decision });
           setDecisions((d) => [...d, { paperId, decision }]);
+          enqueue({ paperId, decision });
         }}
         onUndo={(paperId) => {
-          enqueue({ paperId, decision: null });
           setDecisions((d) => (d.at(-1)?.paperId === paperId ? d.slice(0, -1) : d));
+          enqueue({ paperId, decision: null });
         }}
         onDetails={(paperId) => {
           const item = items.find((i) => i.paper.id === paperId);

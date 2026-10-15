@@ -10,7 +10,7 @@
   - Weights are always rebuilt from the full history. Undo is just "drop the last entry", with no inverse maths.
 - **Distinctiveness:** `featureIdf(pool)` gives `idf(f) = ln((N + 1) / (df(f) + 1))` over the papers in the deck (decided and upcoming). A feature that every paper has ("social", "media" in the demo) gets idf = 0, so it can't change the order. RK-03 needs this same discount before naming a feature.
 - **Score:** `scorePaper(features, weights, idf) = Σ w(f) · idf(f)`.
-- **Rank:** `rankItems(items, { history, minSwipes = 6 })`.
+- **Rank:** `rankItems(items, featuresOf, history, { minSwipes = 6, decay = 0.85 })`.
   - Below `minSwipes`, the original order is returned unchanged (same array).
   - Otherwise there is a stable sort by score, highest first; ties keep the original (relevance) order.
   - Items carry their precomputed feature ids.
@@ -18,8 +18,8 @@
 ## Wiring (swipe workstream, same owner)
 
 - **`persisted-swipe-deck.tsx`:**
-  - Computes features once per item: `extractFeatures(paper, { credibility })`.
-  - Keeps a `decisions` list: it appends on `onDecide`, pops the matching entry on `onUndo`, and is seeded from `initialHistory`.
+  - Computes features once per item: `extractFeatures(paper, { credibility, now })`, with `now` passed down from the server so year features match `initialHistory`.
+  - Keeps a `decisions` list: it appends on `onDecide` and pops the matching entry on `onUndo`. `initialHistory` (earlier visits) is joined in front of it when ranking.
   - Passes `rankItems(...)` to `SwipeDeck`, memoised so the array identity only changes when a decision or the items change.
   - The deck's existing `replaceUpcoming` keeps the top card in place and never brings back decided papers.
 - **`page.tsx`:**

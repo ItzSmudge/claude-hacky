@@ -26,14 +26,20 @@ export default function DeckPage({ params }: PageProps<"/app/p/[projectId]">) {
 
 async function Deck({ params }: Pick<PageProps<"/app/p/[projectId]">, "params">) {
   const { projectId } = await params;
+  // Request time: one clock for year features on server (history) and client (deck items).
+  await connection();
+  const now = new Date().toISOString();
   const history = await swipeHistory(projectId);
   const swiped = new Set(history.map((s) => s.paperId));
-  // Features of papers already decided, so a reload resumes the learnt order. Only reached after
-  // a request-time read (history is empty otherwise), so the clock read here is allowed.
+  // Features of papers already decided, so a reload resumes the learnt order.
+  // TODO(SW-04): look these up in the `papers` cache once the deck isn't fixture-only.
   const initialHistory: SwipeSample[] = history.flatMap(({ paperId, decision }) => {
     const entry = fixturePapers.find((item) => item.paper.id === paperId);
     if (!entry) return [];
-    const features = extractFeatures(entry.paper, { credibility: entry.credibility });
+    const features = extractFeatures(entry.paper, {
+      credibility: entry.credibility,
+      now: new Date(now),
+    });
     return [{ features: features.map((f) => f.id), decision }];
   });
   return (
@@ -42,6 +48,7 @@ async function Deck({ params }: Pick<PageProps<"/app/p/[projectId]">, "params">)
       projectId={projectId}
       items={fixturePapers.filter((item) => !swiped.has(item.paper.id))}
       initialHistory={initialHistory}
+      now={now}
       claims={fixtureProject.context.claims}
       libraryHref={`/app/p/${projectId}/library`}
     />
