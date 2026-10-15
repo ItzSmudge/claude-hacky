@@ -1,4 +1,4 @@
-import { HelpCircle, Minus, Swords, ThumbsUp, type LucideIcon } from "lucide-react";
+import { ChevronDown, HelpCircle, Minus, Swords, ThumbsUp, type LucideIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { Stance } from "@/types/domain";
@@ -54,20 +54,28 @@ export function StanceChip({
     return <span className={cn(chipClass, tone, className)}>{face}</span>;
   }
 
+  // Interactive chips: stronger border + chevron so they read as tappable; 44px hit area via ::after.
   return (
     <Popover>
       <PopoverTrigger
         className={cn(
           chipClass,
-          "min-h-8 transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none",
+          "relative min-h-8 transition-colors after:absolute after:inset-x-0 after:-inset-y-1.5 after:content-[''] hover:bg-muted hc:border-current",
+          "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card focus-visible:outline-none",
           tone,
+          "border-current/70",
           className,
         )}
-        aria-label={`${label}${claim ? ` ${claim}` : ""}: ${claimText}`}
       >
         {face}
+        <span className="sr-only">, about: {claimText}</span>
+        <ChevronDown className="size-3.5 opacity-80" strokeWidth={1.75} aria-hidden />
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-72 gap-2 rounded-xl p-3 shadow-paper">
+      <PopoverContent
+        align="start"
+        aria-label={`${label}${claim ? ` ${claim.toLowerCase()}` : ""}`}
+        className="max-h-(--radix-popover-content-available-height) w-72 max-w-(--radix-popover-content-available-width) gap-2 overflow-y-auto rounded-xl p-3 shadow-paper"
+      >
         <p className={cn("flex items-center gap-1.5 font-medium", tone)}>
           <Icon className="size-4" strokeWidth={1.75} aria-hidden />
           {label}

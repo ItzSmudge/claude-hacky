@@ -29,6 +29,16 @@ describe("formatAuthors", () => {
     );
   });
 
+  it("takes the part before the comma for 'Surname, Given' names", () => {
+    expect(formatAuthors([{ name: "Boer, Maartje" }])).toBe("Boer");
+  });
+
+  it("keeps organisation names whole", () => {
+    expect(formatAuthors([{ name: "World Health Organization" }])).toBe(
+      "World Health Organization",
+    );
+  });
+
   it("ignores blank names and returns undefined when none are left", () => {
     expect(formatAuthors([{ name: "  " }])).toBeUndefined();
     expect(formatAuthors([])).toBeUndefined();
@@ -71,6 +81,18 @@ describe("resolveStances", () => {
         claimText: "Claim two.",
       },
     ]);
+  });
+
+  it("keeps only the first stance per claim", () => {
+    expect(
+      resolveStances(
+        [
+          { claimId: "c1", stance: "supports", note: "" },
+          { claimId: "c1", stance: "challenges", note: "" },
+        ],
+        claims,
+      ).map((s) => s.stance),
+    ).toEqual(["supports"]);
   });
 
   it("drops stances whose claim id is unknown", () => {

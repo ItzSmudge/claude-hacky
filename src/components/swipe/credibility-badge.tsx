@@ -32,21 +32,27 @@ export function CredibilityBadge({ credibility }: { credibility: Credibility }) 
     <Popover>
       <PopoverTrigger
         className={cn(
-          "inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-sm font-medium tabular-nums",
-          "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none",
-          "hc:border-2 hc:border-primary",
+          // 44px hit area without changing the visual size.
+          "relative inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-sm font-medium tabular-nums after:absolute after:-inset-2 after:content-['']",
+          "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card focus-visible:outline-none",
+          "hc:border-2 hc:border-primary hc:bg-card",
           low ? "bg-warning/25 text-foreground" : "bg-accent text-accent-foreground",
         )}
-        aria-label={`Credibility ${credibility.score} out of 100${low ? ", low" : ""}. Show how it's scored.`}
+        // Starts with the visible text so voice control ("tap Low 35/100") works.
+        aria-label={`${low ? "Low " : ""}${credibility.score}/100 credibility. Show how it's scored.`}
       >
         <Icon className="size-4" strokeWidth={1.75} aria-hidden />
         {low && <span>Low</span>}
         <span>
           {credibility.score}
-          <span className="text-xs opacity-70">/100</span>
+          <span className="text-xs">/100</span>
         </span>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-64 gap-2 rounded-xl p-3 shadow-paper">
+      <PopoverContent
+        align="end"
+        aria-label={`Credibility ${credibility.score}/100`}
+        className="max-h-(--radix-popover-content-available-height) w-64 max-w-(--radix-popover-content-available-width) gap-2 overflow-y-auto rounded-xl p-3 shadow-paper"
+      >
         <p className="font-medium">Credibility {credibility.score}/100</p>
         {inputs.length > 0 ? (
           <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1">

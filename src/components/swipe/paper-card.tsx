@@ -37,13 +37,12 @@ export function PaperCard({
         "flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-paper md:p-6 hc:border-2",
         className,
       )}
-      aria-label={paper.title}
     >
       {/* Catalogue-card header: the one ruled line under the meta row. */}
       <header className="-mx-5 flex items-start justify-between gap-3 border-b border-primary/30 px-5 pb-3 md:-mx-6 md:px-6 hc:border-primary">
         <p className="min-w-0 text-sm text-muted-foreground">
-          <span className="block truncate font-medium text-foreground/80">{meta.venue}</span>
-          <span className="block truncate">
+          <span className="block font-medium break-words text-foreground/80">{meta.venue}</span>
+          <span className="block break-words">
             {meta.author}, {meta.year}
           </span>
         </p>
@@ -55,8 +54,14 @@ export function PaperCard({
       </h2>
 
       <p className="rounded-xl bg-highlight px-3 py-2 font-medium text-highlight-foreground hc:border-2 hc:border-primary">
-        <span className="sr-only">Why it matters: </span>
-        {whyItMatters || <span className="opacity-70">Why it matters: {NOT_STATED}</span>}
+        {whyItMatters ? (
+          <>
+            <span className="sr-only">Why it matters: </span>
+            {whyItMatters}
+          </>
+        ) : (
+          <span className="italic">Why it matters: {NOT_STATED}</span>
+        )}
       </p>
 
       <p className="max-w-[65ch] text-base leading-relaxed">
@@ -64,7 +69,7 @@ export function PaperCard({
       </p>
 
       {stances.length > 0 && (
-        <ul className="flex flex-wrap gap-2" aria-label="Stance toward your claims">
+        <ul className="flex flex-wrap gap-3" aria-label="Stance toward your claims">
           {stances.map((s) => (
             <li key={s.claimId}>
               <StanceChip stance={s.stance} claim={s.label} claimText={s.claimText} note={s.note} />
@@ -74,16 +79,17 @@ export function PaperCard({
       )}
 
       <div className="flex items-center gap-3 text-sm">
-        <span id={`relevance-${paper.id}`} className="text-muted-foreground">
+        <span className="text-muted-foreground" aria-hidden>
           Relevance
         </span>
         <div
           className="h-2 flex-1 overflow-hidden rounded-full bg-secondary hc:border hc:border-primary"
           role="meter"
-          aria-labelledby={`relevance-${paper.id}`}
+          aria-label="Relevance to your project"
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={relevance}
+          aria-valuetext={`${relevance} out of 100`}
         >
           <div className="h-full rounded-full bg-primary" style={{ width: `${relevance}%` }} />
         </div>
