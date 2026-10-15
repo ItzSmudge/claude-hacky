@@ -12,7 +12,9 @@ function Key({ children }: { children: string }) {
   );
 }
 
-const base = "h-12 gap-2 rounded-xl text-base";
+// Grows instead of overflowing at 200% text; opaque ring with offset (the shadcn default is 50%).
+const base =
+  "h-auto min-h-12 flex-wrap gap-x-2 gap-y-0.5 rounded-xl py-1.5 text-base whitespace-normal focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background hc:focus-visible:ring-4";
 
 /** Skip · Undo · Save — the always-visible, non-gesture way to use the deck. */
 export function DeckControls({

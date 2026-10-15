@@ -48,6 +48,8 @@ export interface DeckItem {
 
 const SPRING = { type: "spring", stiffness: 300, damping: 30 } as const;
 const FADE_S = 0.15;
+/** Backstop: a stopped motion animation never resolves its promise, so never wait longer than this. */
+const ANIMATION_TIMEOUT_MS = 600;
 const IGNORE_KEYS_IN = "input, textarea, select, [contenteditable], [role=dialog]";
 const NO_DRAG_FROM = "button, a, [role=dialog]";
 
@@ -57,6 +59,17 @@ function safely<A extends unknown[]>(fn: ((...args: A) => void) | undefined, ...
   } catch (error) {
     console.error("[SwipeDeck] callback failed", error);
   }
+}
+
+/** Resolves when the animation completes, is stopped, or the timeout passes — whichever is first. */
+function settled(start: (done: () => void) => void) {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ANIMATION_TIMEOUT_MS);
+    start(() => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
 }
 
 /**
@@ -95,7 +108,10 @@ export function SwipeDeck({
 
   const cardRef = useRef<HTMLDivElement>(null);
   const regionRef = useRef<HTMLDivElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+  const deckRef = useRef(deck);
   const busy = useRef(false);
+  const dragging = useRef(false);
   const pointerCancelled = useRef(false);
   const entering = useRef<{ paperId: string; from: 1 | -1 } | null>(null);
   const emptyFired = useRef(false);
@@ -138,6 +154,10 @@ export function SwipeDeck({
     opacity.jump(1);
   }, [topId, reduceMotion, x, y, opacity]);
 
+  useEffect(() => {
+    deckRef.current = deck;
+  }, [deck]);
+
   const fireEmpty = useEffectEvent(() => safely(onEmpty));
   useEffect(() => {
     if (left > 0) {
@@ -148,29 +168,41 @@ export function SwipeDeck({
     }
   }, [left]);
 
+  const canCommit = () => top !== null && !busy.current && !dragging.current;
+
   async function commit(decision: SwipeDecision, velocity = 0) {
-    if (busy.current || !top) return;
+    if (!top || busy.current) return;
     busy.current = true;
     const paper = top.paper;
-    const hadFocus = cardRef.current?.contains(document.activeElement) ?? false;
+    const active = document.activeElement;
+    // Keep keyboard focus: the card is leaving, or this button is about to be disabled (last card).
+    const moveFocus =
+      (cardRef.current?.contains(active) ?? false) ||
+      (left === 1 && (sectionRef.current?.contains(active) ?? false));
 
     if (reduceMotion) {
       setFlash(decision);
-      await animate(opacity, 0, { duration: FADE_S });
+      await settled((done) => {
+        animate(opacity, 0, { duration: FADE_S, onComplete: done });
+      });
     } else {
       const target = (decision === "save" ? 1 : -1) * window.innerWidth;
       const distance = Math.abs(target - x.get());
       const duration = Math.min(0.25, Math.max(0.15, distance / Math.max(Math.abs(velocity), 1)));
-      await animate(x, target, { duration, ease: "easeOut" });
+      await settled((done) => {
+        animate(x, target, { duration, ease: "easeOut", onComplete: done });
+      });
     }
 
-    dispatch({ type: "decide", decision });
+    busy.current = false;
     setFlash(null);
+    // The card may have been removed from `items` mid-animation: then nothing was decided.
+    if (current(deckRef.current)?.paper.id !== paper.id) return;
+    dispatch({ type: "decide", paperId: paper.id, decision });
     setAnnouncement(
       `${decision === "save" ? "Saved" : "Skipped"}: ${paper.title}. ${left - 1} left.`,
     );
-    if (hadFocus) regionRef.current?.focus();
-    busy.current = false;
+    if (moveFocus) regionRef.current?.focus();
     safely(onDecide, paper.id, decision);
   }
 
@@ -179,6 +211,10 @@ export function SwipeDeck({
     const last = lastDecision(deck);
     if (!last) return;
     entering.current = { paperId: last.paperId, from: last.decision === "save" ? 1 : -1 };
+    // Undo is about to be disabled (history empties): keep focus in the deck.
+    if (deck.history.length === 1 && sectionRef.current?.contains(document.activeElement)) {
+      regionRef.current?.focus();
+    }
     dispatch({ type: "undo" });
     setAnnouncement(`Restored: ${deck.known[last.paperId]?.paper.title ?? "paper"}.`);
     safely(onUndo, last.paperId, last.decision);
@@ -192,11 +228,14 @@ export function SwipeDeck({
     if (reduceMotion || busy.current) return;
     if (event.target instanceof Element && event.target.closest(NO_DRAG_FROM)) return;
     pointerCancelled.current = false;
+    dragging.current = true;
     dragControls.start(event);
   }
 
   // Velocity must come from PanInfo: the motion value's own velocity reads 0 once the drag ends.
   function endDrag(_event: PointerEvent, info: PanInfo) {
+    dragging.current = false;
+    if (busy.current) return;
     const outcome = pointerCancelled.current
       ? null
       : classifyGesture({
@@ -216,23 +255,30 @@ export function SwipeDeck({
   }
 
   const onKey = useEffectEvent((event: KeyboardEvent) => {
-    if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
-    if (event.target instanceof Element && event.target.closest(IGNORE_KEYS_IN)) return;
+    if (event.defaultPrevented || event.repeat) return;
+    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+    // WCAG 2.1.4: shortcuts only act when focus is on the page itself or inside the deck.
+    const target = event.target;
+    const inDeck = target instanceof Node && (sectionRef.current?.contains(target) ?? false);
+    if (target !== document.body && !inDeck) return;
+    if (target instanceof Element && target.closest(IGNORE_KEYS_IN)) return;
+
+    // preventDefault only when the key does something, so arrows still scroll otherwise.
     switch (event.key) {
       case "ArrowRight":
-        event.preventDefault();
-        void commit("save");
-        break;
       case "ArrowLeft":
+        if (!canCommit()) return;
         event.preventDefault();
-        void commit("skip");
+        void commit(event.key === "ArrowRight" ? "save" : "skip");
         break;
       case "ArrowUp":
+        if (!onDetails || !top) return;
         event.preventDefault();
         details();
         break;
       case "z":
       case "Z":
+        if (!canUndo(deck) || busy.current) return;
         event.preventDefault();
         undo();
         break;
@@ -248,9 +294,14 @@ export function SwipeDeck({
   const stack = [...behind].reverse();
 
   return (
-    <section aria-label="Paper deck" className={cn("flex flex-col gap-4", className)}>
+    <section
+      ref={sectionRef}
+      aria-label="Paper deck"
+      className={cn("flex flex-col gap-4", className)}
+    >
       <div
         ref={regionRef}
+        role="group"
         tabIndex={-1}
         aria-label={top ? `Paper ${deck.cursor + 1} of ${total}` : "No papers left"}
         className="grid rounded-2xl *:[grid-area:1/1] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
@@ -296,7 +347,7 @@ export function SwipeDeck({
               style={{ x, y, rotate, opacity, touchAction: "pan-y" }}
               className="relative cursor-grab select-none active:cursor-grabbing"
             >
-              <PaperCard {...top} claims={claims} onDetails={details} />
+              <PaperCard {...top} claims={claims} onDetails={onDetails ? details : undefined} />
               <motion.span
                 aria-hidden
                 style={{ opacity: flash === "save" ? 1 : saveStamp }}
@@ -336,9 +387,9 @@ export function SwipeDeck({
       </div>
 
       <DeckControls
-        onSkip={() => void commit("skip")}
+        onSkip={() => canCommit() && void commit("skip")}
         onUndo={undo}
-        onSave={() => void commit("save")}
+        onSave={() => canCommit() && void commit("save")}
         canUndo={canUndo(deck)}
         disabled={!top}
       />

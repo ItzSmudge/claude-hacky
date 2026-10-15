@@ -17,7 +17,7 @@ const ids = (xs: Item[]) => xs.map((x) => x.paper.id);
 const id = (x: Item | null) => x?.paper.id ?? null;
 
 const decide = (s: DeckState<Item>, decision: "save" | "skip") =>
-  deckReducer(s, { type: "decide", decision });
+  deckReducer(s, { type: "decide", paperId: s.order[s.cursor] ?? "", decision });
 const undo = (s: DeckState<Item>) => deckReducer(s, { type: "undo" });
 
 describe("createDeck", () => {
@@ -48,6 +48,12 @@ describe("decide", () => {
     expect(lastDecision(s)).toEqual({ paperId: "a", decision: "save" });
     expect(remaining(s)).toBe(1);
     expect(canUndo(s)).toBe(true);
+  });
+
+  it("is a no-op when paperId is no longer the top card", () => {
+    const s = createDeck(items("a", "b"));
+    const next = deckReducer(s, { type: "decide", paperId: "b", decision: "save" });
+    expect(next).toBe(s);
   });
 
   it("is a no-op when the deck is empty", () => {
@@ -113,6 +119,12 @@ describe("replaceUpcoming", () => {
     expect(s1.order).toEqual(s0.order);
     expect(s1.cursor).toBe(s0.cursor);
     expect(s1.history).toEqual(s0.history);
+  });
+
+  it("refreshes data for an id it has already seen", () => {
+    const s0 = createDeck([{ paper: { id: "a" }, v: 1 }]);
+    const s1 = deckReducer(s0, { type: "replaceUpcoming", items: [{ paper: { id: "a" }, v: 2 }] });
+    expect(current(s1)?.v).toBe(2);
   });
 
   it("undo restores a paper no longer in items", () => {

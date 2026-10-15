@@ -15,12 +15,13 @@ export interface DeckState<T extends Keyed> {
   /** Index of the top card in `order`; always equals `history.length`. */
   cursor: number;
   history: DeckDecision[];
-  /** Every item ever seen, so undo works even if `items` later drops it. */
+  /** Every item ever seen (latest data), so undo works even if `items` later drops it. */
   known: Record<string, T>;
 }
 
 export type DeckAction<T extends Keyed> =
-  | { type: "decide"; decision: SwipeDecision }
+  /** `paperId` must still be the top card, else no-op (it may have been removed mid-animation). */
+  | { type: "decide"; paperId: string; decision: SwipeDecision }
   | { type: "undo" }
   | { type: "replaceUpcoming"; items: T[] };
 
@@ -28,7 +29,8 @@ const uniqueIds = <T extends Keyed>(items: T[]) => [...new Set(items.map((i) => 
 
 const remember = <T extends Keyed>(known: Record<string, T>, items: T[]) => {
   const next = { ...known };
-  for (const item of items) next[item.paper.id] ??= item;
+  // Latest data wins (SW-04 re-sends a paper once its analysis arrives).
+  for (const item of items) next[item.paper.id] = item;
   return next;
 };
 
@@ -42,12 +44,11 @@ export function deckReducer<T extends Keyed>(
 ): DeckState<T> {
   switch (action.type) {
     case "decide": {
-      const paperId = state.order[state.cursor];
-      if (paperId === undefined) return state;
+      if (state.order[state.cursor] !== action.paperId) return state;
       return {
         ...state,
         cursor: state.cursor + 1,
-        history: [...state.history, { paperId, decision: action.decision }],
+        history: [...state.history, { paperId: action.paperId, decision: action.decision }],
       };
     }
     case "undo": {
