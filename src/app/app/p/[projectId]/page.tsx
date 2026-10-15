@@ -1,17 +1,19 @@
-import Link from "next/link";
-import { PaperCard } from "@/components/swipe/paper-card";
+import { SwipeDeck } from "@/components/swipe/swipe-deck";
 import { fixturePapers, fixtureProject } from "@/fixtures";
 
-// Placeholder (F-13). Owner: swipe (SW-*). Renders the top fixture card until the deck exists.
+// Owner: swipe (SW-*). Fixture-backed until SW-04 (queue) and SW-05 (persistence) land.
 export default function DeckPage() {
-  const top = fixturePapers[0];
+  // Clip the fling at the screen edge (bleeds into main's gutter) without cutting focus rings or shadows.
   return (
-    <div className="mx-auto flex max-w-md flex-col gap-4">
-      <h1 className="text-3xl text-primary">{fixtureProject.title}</h1>
-      <PaperCard {...top} claims={fixtureProject.context.claims} />
-      <Link href={`/app/p/${fixtureProject.id}/library`} className="text-primary underline">
-        Library
-      </Link>
+    <div className="-mx-4 overflow-x-clip px-4 md:-mx-8 md:px-8">
+      <div className="mx-auto flex w-full max-w-md flex-col gap-4">
+        <h1 className="font-display text-3xl font-semibold text-primary">{fixtureProject.title}</h1>
+        <SwipeDeck
+          items={fixturePapers}
+          claims={fixtureProject.context.claims}
+          libraryHref={`/app/p/${fixtureProject.id}/library`}
+        />
+      </div>
     </div>
   );
 }
