@@ -7,5 +7,5 @@
 
 - [ ] LB-01 ⚡ Library page: saved papers grouped by `useAs` / stance, remove/restore
 - [x] LB-02 (PR #11) ⚡ BibTeX: doi.org content negotiation → fallback code-built entry; stable cite keys (`lastnameYEARword`) + tests
-- [ ] LB-03 ⚡ LaTeX `thebibliography` + `.bib` download + "copy \cite{}" ; CSV ; Markdown reading list
+- [~] @Mr-Moody feat/export-formats LB-03 ⚡ LaTeX `thebibliography` + `.bib` download + "copy \cite{}" ; CSV ; Markdown reading list
 - [ ] LB-04 Relations view UI (consumes AI-05)
