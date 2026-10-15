@@ -15,6 +15,8 @@ const item = (
   paper: { id, source: "openalex", externalId: id, title: `Title ${id}`, authors: [], topics: [] },
   credibility: { score, inputs: {} },
   citeKey: `key${id}`,
+  savedByMe: true,
+  savedByTeammate: false,
   analysis: analysis && {
     paperId: id,
     projectId: "p",

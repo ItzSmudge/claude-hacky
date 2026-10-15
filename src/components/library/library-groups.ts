@@ -6,6 +6,9 @@ export interface LibraryItem {
   analysis?: PaperAnalysis;
   credibility: Credibility;
   citeKey: string;
+  /** Saves are per member: you can only remove your own; a teammate's save keeps it here. */
+  savedByMe: boolean;
+  savedByTeammate: boolean;
 }
 
 export type UseGroupKey = PaperAnalysis["useAs"] | "unanalysed";

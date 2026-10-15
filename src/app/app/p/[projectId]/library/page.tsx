@@ -29,7 +29,11 @@ async function Library({ params }: Pick<PageProps<"/app/p/[projectId]/library">,
   // Request time only: supabase-js reads the clock to check token expiry.
   await connection();
   const supabase = await getSupabaseServerClient();
-  const loaded = await loadSavedLibrary(supabase, projectId);
+  const [loaded, { data: auth }] = await Promise.all([
+    loadSavedLibrary(supabase, projectId),
+    supabase.auth.getClaims(),
+  ]);
+  const userId = auth?.claims.sub;
   if (!loaded.ok && loaded.reason === "not-found") notFound();
 
   const heading = (
@@ -46,7 +50,7 @@ async function Library({ params }: Pick<PageProps<"/app/p/[projectId]/library">,
     );
   }
 
-  const { title, claims, papers, analyses } = loaded.library;
+  const { title, claims, papers, analyses, savedBy } = loaded.library;
   const keys = citeKeys(papers);
   const sortedKeys = sortByKey(papers, keys).map((p) => keys.get(p.id)!);
   const items: LibraryItem[] = papers.map((paper) => ({
@@ -54,6 +58,8 @@ async function Library({ params }: Pick<PageProps<"/app/p/[projectId]/library">,
     analysis: analyses.get(paper.id),
     credibility: computeCredibility(paper),
     citeKey: keys.get(paper.id)!,
+    savedByMe: !!userId && (savedBy.get(paper.id) ?? []).includes(userId),
+    savedByTeammate: (savedBy.get(paper.id) ?? []).some((id) => id !== userId),
   }));
   const deckHref = `/app/p/${projectId}`;
   return (

@@ -10,6 +10,8 @@ export interface SavedLibrary {
   claims: ProjectContext["claims"];
   papers: Paper[];
   analyses: Map<string, PaperAnalysis>;
+  /** Paper id → ids of the members who saved it (saves are per member). */
+  savedBy: Map<string, string[]>;
 }
 
 export type LoadResult =
@@ -33,13 +35,15 @@ export async function loadSavedLibrary(
 
   const saves = await supabase
     .from("swipes")
-    .select("paper_id, papers(data)")
+    .select("paper_id, user_id, papers(data)")
     .eq("project_id", projectId)
     .eq("decision", "save");
   if (saves.error) return failed("reading saves", saves.error);
 
   const papers = new Map<string, Paper>();
+  const savedBy = new Map<string, string[]>();
   for (const row of saves.data) {
+    savedBy.set(row.paper_id, [...(savedBy.get(row.paper_id) ?? []), row.user_id]);
     const parsed = paperSchema.safeParse(row.papers?.data);
     if (parsed.success) papers.set(row.paper_id, { ...parsed.data, id: row.paper_id });
     else console.warn("[export] skipping malformed paper", row.paper_id);
@@ -65,6 +69,7 @@ export async function loadSavedLibrary(
       claims: projectContextSchema.safeParse(project.context).data?.claims ?? [],
       papers: [...papers.values()],
       analyses: byPaper,
+      savedBy,
     },
   };
 }

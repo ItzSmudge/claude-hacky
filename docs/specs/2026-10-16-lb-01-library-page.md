@@ -24,7 +24,7 @@
 - Papers without an analysis go in "Not analysed yet", with no stance chips or "why it matters" line.
 - Project without claims: the By claim toggle is hidden.
 - Remove fails: the card is restored and an error toast offers Retry.
-- Another member saved the same paper: it stays in the shared library after you remove it (saves are per member). Known limitation.
+- Saves are per member. You can only remove your own save: a paper only a teammate saved shows "Saved by a teammate" with no Remove button. If you both saved it, removing yours leaves it in the library and the toast says so.
 
 ## Out of scope
 
