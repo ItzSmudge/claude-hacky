@@ -1,0 +1,8 @@
+pnpm-lock.yaml
+.next
+node_modules
+coverage
+src/types/database.ts
+supabase/.temp
+.claude/worktrees
+docs/SETUP_PLAN.md
