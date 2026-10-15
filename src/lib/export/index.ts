@@ -1,10 +1,23 @@
 import type { Paper } from "@/types/domain";
 import { buildEntry, rekeyEntry } from "./bibtex";
-import { citeKeys } from "./cite-key";
+import { citeKeys, sortByKey } from "./cite-key";
 import { fetchDoiBibtex } from "./doi";
 
-export { buildEntry, escapeLatex, latexTitle, rekeyEntry } from "./bibtex";
-export { asciiFold, citeKey, citeKeys, familyName, stripTags } from "./cite-key";
+export { buildEntry, escapeLatex, latexTitle, paperDoi, paperUrl, rekeyEntry } from "./bibtex";
+export {
+  asciiFold,
+  citeCommand,
+  citeKey,
+  citeKeys,
+  familyName,
+  plainText,
+  sortByKey,
+  stripTags,
+} from "./cite-key";
+export { csvExport } from "./csv";
+export { latexBibliography } from "./latex";
+export { loadSavedLibrary, type LoadResult, type SavedLibrary } from "./library";
+export { markdownReadingList } from "./markdown";
 export { fetchDoiBibtex, normaliseDoi } from "./doi";
 
 const MAX_CONCURRENT_FETCHES = 4;
@@ -50,8 +63,7 @@ export async function bibtexFor(
   const signal = options.signal ? AbortSignal.any([options.signal, deadline]) : deadline;
   const fetchOptions = { fetch: options.fetch, signal, userAgent: options.userAgent };
   const keys = citeKeys(papers);
-  const unique = [...new Map(papers.map((p) => [p.id, p])).values()];
-  const sorted = unique.sort((a, b) => (keys.get(a.id)! < keys.get(b.id)! ? -1 : 1));
+  const sorted = sortByKey(papers, keys);
 
   const entries = await mapLimited(sorted, MAX_CONCURRENT_FETCHES, async (paper) => {
     const key = keys.get(paper.id)!;

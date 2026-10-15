@@ -34,8 +34,40 @@ export const asciiFold = (text: string) =>
     .replace(/[øØæÆœŒßłŁđĐðÐþÞı]/g, (ch) => SPECIAL_LETTERS[ch] ?? ch);
 
 /** OpenAlex titles can carry markup such as `<i>E. coli</i>`; keep the text only. */
-export const stripTags = (text: string) =>
-  text.replace(/<\/?[A-Za-z][\w:-]*(?:\s[^<>]*)?\/?>/g, "");
+// Only formatting markup seen in scholarly metadata, so text like "<Health>" survives.
+const MARKUP =
+  /<\/?(?:i|b|u|em|strong|sup|sub|sc|scp|span|br|p|a|small|big|tt|font|math|mml:[\w-]+)(?:\s[^<>]*)?\/?>/gi;
+export const stripTags = (text: string) => text.replace(MARKUP, "");
+
+const ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+};
+
+const decodeEntity = (match: string, name: string) => {
+  if (name[0] !== "#") return ENTITIES[name.toLowerCase()] ?? match;
+  const code =
+    name[1] === "x" || name[1] === "X" ? parseInt(name.slice(2), 16) : Number(name.slice(1));
+  return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match;
+};
+
+/**
+ * Metadata text as every export renders it: markup stripped, common HTML entities decoded
+ * (OpenAlex titles carry `&amp;`), and all whitespace, including line breaks, collapsed.
+ */
+export const plainText = (text: string) =>
+  stripTags(text)
+    .replace(/&(#\d+|#x[0-9a-f]+|[a-z]+);/gi, decodeEntity)
+    .replace(/\s+/g, " ")
+    .trim();
+
+/** One `\cite{}` with every key (empty when there are none). Shared by exports and the UI. */
+export const citeCommand = (keys: readonly string[]) =>
+  keys.length ? `\\cite{${keys.join(",")}}` : "";
 
 const SUFFIXES = new Set(["jr", "sr", "ii", "iii", "iv"]);
 
@@ -68,7 +100,7 @@ export function citeKey(paper: Paper): string {
   const y = paper.year;
   const year = y !== undefined && Number.isInteger(y) && y > 0 && y < 10_000 ? y : "nd";
   const word =
-    stripTags(paper.title)
+    plainText(paper.title)
       .split(/\s+/)
       .map(slug)
       .find((w) => w.length > 1 && !STOPWORDS.has(w)) ?? "untitled";
@@ -94,3 +126,10 @@ export function citeKeys(papers: readonly Paper[]): Map<string, string> {
 /** 1 → "b", 2 → "c", … 24 → "z", 25 → "zb": always letters, so keys stay `[a-z]+`. */
 const suffix = (i: number): string =>
   i <= 24 ? String.fromCharCode(97 + i) : "z" + suffix(i - 24);
+
+/** Unique papers sorted by their cite key: the order every export uses. */
+export function sortByKey(papers: readonly Paper[], keys: Map<string, string>): Paper[] {
+  const unique = [...new Map(papers.map((p) => [p.id, p])).values()];
+  const key = (p: Paper) => keys.get(p.id) ?? "";
+  return unique.sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
+}

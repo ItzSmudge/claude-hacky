@@ -1,5 +1,5 @@
 import type { Paper } from "@/types/domain";
-import { stripTags } from "./cite-key";
+import { plainText } from "./cite-key";
 import { normaliseDoi } from "./doi";
 
 /**
@@ -21,15 +21,66 @@ const LATEX_SPECIALS: Record<string, string> = {
   "^": "\\textasciicircum{}",
 };
 
+// pdflatex (Overleaf's default) stops on most non-Latin characters and prints < > | as other
+// glyphs; map what scientific titles commonly carry. Other scripts need XeLaTeX/LuaLaTeX.
+const GREEK =
+  "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi o pi rho varsigma sigma tau upsilon phi chi psi omega";
+const LATEX_UNICODE: Record<string, string> = {
+  "<": "\\textless{}",
+  ">": "\\textgreater{}",
+  "|": "\\textbar{}",
+  "−": "-",
+  "≥": "$\\geq$",
+  "≤": "$\\leq$",
+  "≠": "$\\neq$",
+  "×": "$\\times$",
+  "±": "$\\pm$",
+  "∼": "$\\sim$",
+  "≈": "$\\approx$",
+  "→": "$\\rightarrow$",
+  "°": "\\textdegree{}",
+  µ: "$\\mu$",
+  "¹": "\\textsuperscript{1}",
+  "²": "\\textsuperscript{2}",
+  "³": "\\textsuperscript{3}",
+  Γ: "$\\Gamma$",
+  Δ: "$\\Delta$",
+  Θ: "$\\Theta$",
+  Λ: "$\\Lambda$",
+  Ξ: "$\\Xi$",
+  Π: "$\\Pi$",
+  Σ: "$\\Sigma$",
+  Φ: "$\\Phi$",
+  Ψ: "$\\Psi$",
+  Ω: "$\\Omega$",
+  Υ: "$\\Upsilon$",
+  // Capitals that look Latin are written as the Latin letter.
+  ...Object.fromEntries([..."ΑΒΕΖΗΙΚΜΝΟΡΤΧ"].map((ch, i) => [ch, "ABEZHIKMNOPTX"[i]!])),
+  ...Object.fromEntries(
+    GREEK.split(" ").map((name, i) => [
+      String.fromCodePoint(0x3b1 + i),
+      name === "o" ? "o" : `$\\${name}$`,
+    ]),
+  ),
+};
+
+// Control characters, soft hyphens and zero-width characters: invisible, and fatal to pdflatex.
+const INVISIBLE = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u00ad\u200b-\u200d\u2060\ufeff]/g;
+
 export const escapeLatex = (text: string) =>
-  text.replace(/[\\{}&%$#_~^]/g, (ch) => LATEX_SPECIALS[ch] ?? ch);
+  text
+    .replace(INVISIBLE, "")
+    .replace(
+      /[\\{}&%$#_~^<>|−≥≤≠×±∼≈→°µ¹²³\u0391-\u03c9]/g,
+      (ch) => LATEX_SPECIALS[ch] ?? LATEX_UNICODE[ch] ?? ch,
+    );
 
 /** A capital after the first letter (UK, COVID-19, iPhone): brace it so styles keep its case. */
 const needsProtection = (word: string) => /\p{Lu}/u.test(word.replace(/^\P{L}+/u, "").slice(1));
 
 /** Escaped title text with case-sensitive words braced. */
 export const latexTitle = (title: string) =>
-  stripTags(title)
+  plainText(title)
     .split(/(\s+)/)
     .map((part) => (needsProtection(part) ? `{${escapeLatex(part)}}` : escapeLatex(part)))
     .join("");
@@ -53,13 +104,32 @@ const field = (name: string, value: string) => `  ${name} = ${value},`;
  * Verbatim fields (doi, url) can't be escaped; drop a value whose braces would break the entry
  * or whose % / # break `\url` inside macro arguments.
  */
-const verbatim = (value: string | undefined) =>
-  value && !/[{}\\%#\s]/.test(value) ? `{${value}}` : undefined;
+/** http(s), printable ASCII only (pdflatex), none of the characters that break `\url{}`. */
+/** Printable ASCII only (pdflatex), none of the characters that break `\url{}` or the entry. */
+const verbatimSafe = (value: string | undefined) =>
+  value && /^[\x21-\x7e]+$/.test(value) && !/[{}\\%#]/.test(value) ? value : undefined;
+/** As above, and http(s) only: no `javascript:` or `data:` links in any export. */
+const urlSafe = (value: string | undefined) =>
+  value && /^https?:\/\//i.test(value) ? verbatimSafe(value) : undefined;
+const verbatim = (value: string | undefined) => {
+  const safe = verbatimSafe(value);
+  return safe && `{${safe}}`;
+};
+
+/** The paper's DOI in bare form, if it has a valid one. */
+export const paperDoi = (paper: Paper) =>
+  paper.doi ? (normaliseDoi(paper.doi) ?? undefined) : undefined;
+
+/** A link safe to put in `\url{}` (and in every other export): the paper's url, else its DOI. */
+export const paperUrl = (paper: Paper) => {
+  const doi = paperDoi(paper);
+  return urlSafe(paper.url) ?? urlSafe(doi && `https://doi.org/${doi}`);
+};
 
 export function buildEntry(paper: Paper, key: string): string {
   const authors = paper.authors.map((a) => a.name).filter((n) => n.trim());
-  const doi = paper.doi ? (normaliseDoi(paper.doi) ?? undefined) : undefined;
-  const url = verbatim(paper.url) ?? verbatim(doi && `https://doi.org/${doi}`);
+  const doi = paperDoi(paper);
+  const url = verbatim(paperUrl(paper));
   const fields: [string, string | undefined][] = [
     ["author", authors.length ? `{${authors.map(latexName).join(" and ")}}` : undefined],
     ["title", `{${latexTitle(paper.title)}}`],
