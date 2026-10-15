@@ -85,6 +85,20 @@ describe("workToPaper", () => {
     expect(paper.isPeerReviewed).toBe(false);
   });
 
+  it("counts conference proceedings as peer reviewed, but not repositories", () => {
+    const at = (type: string) =>
+      workToPaper({
+        ...works.real!,
+        type: "conference-paper",
+        primary_location: {
+          ...works.real!.primary_location,
+          source: { display_name: "Proceedings of the AAAI Conference", type },
+        },
+      })!.isPeerReviewed;
+    expect(at("conference")).toBe(true);
+    expect(at("repository")).toBe(false);
+  });
+
   it("keeps a bare < in titles", () => {
     const paper = workToPaper({ ...works.markup!, display_name: "Effects at p < 0.05 vs q > 1" })!;
     expect(paper.title).toBe("Effects at p < 0.05 vs q > 1");

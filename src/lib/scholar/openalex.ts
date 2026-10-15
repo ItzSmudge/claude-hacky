@@ -18,7 +18,9 @@ const MAX_RESULTS = 10_000;
 const MAX_RETRY_AFTER_MS = 5_000;
 // Markup OpenAlex leaves in titles. A bare "<" (as in "p < 0.05") is kept.
 const TITLE_MARKUP = /<\/?(?:i|b|em|strong|sub|sup|scp|span|p|br|mml:[\w-]+)\b[^>]*>/gi;
-const PEER_REVIEWED_TYPES = new Set(["article", "review"]);
+const PEER_REVIEWED_TYPES = new Set(["article", "review", "conference-paper"]);
+// Refereed venues; conference proceedings are the main peer-reviewed outlet in CS.
+const PEER_REVIEWED_SOURCES = new Set(["journal", "conference"]);
 const SELECT = [
   "id",
   "doi",
@@ -122,7 +124,8 @@ export function workToPaper(work: OpenAlexWork): Paper | null {
     url: doi
       ? `https://doi.org/${doi.split("/").map(encodeURIComponent).join("/")}`
       : (httpUrl(work.primary_location?.landing_page_url) ?? `https://openalex.org/${externalId}`),
-    isPeerReviewed: PEER_REVIEWED_TYPES.has(work.type ?? "") && source?.type === "journal",
+    isPeerReviewed:
+      PEER_REVIEWED_TYPES.has(work.type ?? "") && PEER_REVIEWED_SOURCES.has(source?.type ?? ""),
     topics: topics.length ? topics : primaryTopic ? [primaryTopic] : [],
   };
   const abstract = abstractFromInvertedIndex(work.abstract_inverted_index);
