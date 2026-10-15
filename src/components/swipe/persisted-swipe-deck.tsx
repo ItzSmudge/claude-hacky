@@ -8,6 +8,10 @@ import { SwipeDeck, type DeckItem } from "./swipe-deck";
 import { classifyStatus, createSwipeSync, type SendResult, type SwipeOp } from "./swipe-sync";
 
 const TITLE_MAX = 60;
+/** Top so a toast never covers the deck controls on a phone. */
+const TOAST_POSITION = "top-center";
+/** sonner's buttons are 24px tall; inline style beats its stylesheet. */
+const TOAST_BUTTON_STYLE = { minHeight: 44, height: "auto", paddingInline: 16 };
 
 async function sendSwipe(projectId: string, op: SwipeOp): Promise<SendResult> {
   const url = `/api/projects/${encodeURIComponent(projectId)}/swipes`;
@@ -46,7 +50,9 @@ function createPersistence(projectId: string, titleOf: (paperId: string) => stri
       if (reason === "unauthorised") {
         if (warnedSignedOut) return;
         warnedSignedOut = true;
-        toast.info("You're not signed in, so swipes won't be kept.");
+        toast.info("You're not signed in, so swipes won't be kept.", {
+          position: TOAST_POSITION,
+        });
         return;
       }
       const title = titleOf(op.paperId);
@@ -55,6 +61,12 @@ function createPersistence(projectId: string, titleOf: (paperId: string) => stri
       toast.error(`Couldn't ${verb} ${what}.`, {
         // One toast per paper: a later failure replaces the earlier one.
         id: toastId(op.paperId),
+        position: TOAST_POSITION,
+        // Stays until handled: keyboard and screen-reader users need time to reach Retry.
+        duration: Infinity,
+        actionButtonStyle: TOAST_BUTTON_STYLE,
+        cancelButtonStyle: TOAST_BUTTON_STYLE,
+        cancel: { label: "Dismiss", onClick: () => {} },
         action: {
           label: "Retry",
           onClick: () => {
