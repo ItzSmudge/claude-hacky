@@ -17,12 +17,15 @@ export function PaperCard({
   analysis,
   credibility,
   claims,
+  onDetails,
   className,
 }: {
   paper: Paper;
   analysis: PaperAnalysis;
   credibility: Credibility;
   claims: ProjectContext["claims"];
+  /** Makes the "Details" hint a real button (the deck passes this for the top card). */
+  onDetails?: () => void;
   className?: string;
 }) {
   const meta = formatMeta(paper);
@@ -98,10 +101,22 @@ export function PaperCard({
         </span>
       </div>
 
-      <p className="flex items-center justify-center gap-1 text-sm text-muted-foreground">
-        <ChevronUp className="size-4" strokeWidth={1.75} aria-hidden />
-        Details
-      </p>
+      {onDetails ? (
+        <button
+          type="button"
+          onClick={onDetails}
+          aria-keyshortcuts="ArrowUp"
+          className="mx-auto flex min-h-11 items-center gap-1 rounded-xl px-4 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card focus-visible:outline-none"
+        >
+          <ChevronUp className="size-4" strokeWidth={1.75} aria-hidden />
+          Details
+        </button>
+      ) : (
+        <p className="flex items-center justify-center gap-1 text-sm text-muted-foreground">
+          <ChevronUp className="size-4" strokeWidth={1.75} aria-hidden />
+          Details
+        </p>
+      )}
     </article>
   );
 }
