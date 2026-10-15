@@ -1,13 +1,16 @@
 import { ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Credibility, Paper, PaperAnalysis, ProjectContext } from "@/types/domain";
+import { clampRelevance, formatMeta, resolveStances } from "./card-format";
 import { CredibilityBadge } from "./credibility-badge";
 import { StanceChip } from "./stance-chip";
 
+const NOT_STATED = "not stated";
+
 /**
- * Static paper index card (design reference from F-14; SW-01 owns its evolution).
- * Anatomy per docs/SETUP_PLAN.md §2b: meta row → title → why it matters → overview → stances →
- * relevance → details hint.
+ * Paper index card for the swipe deck.
+ * Anatomy (design-system skill): meta row → catalogue rule → title → why it matters → overview →
+ * stances → relevance → details hint. All bibliographic text comes from `paper` (scholar APIs).
  */
 export function PaperCard({
   paper,
@@ -22,58 +25,70 @@ export function PaperCard({
   claims: ProjectContext["claims"];
   className?: string;
 }) {
-  const claimLabel = (id: string) => `Claim ${claims.findIndex((c) => c.id === id) + 1}`;
+  const meta = formatMeta(paper);
+  const stances = resolveStances(analysis.stances, claims);
+  const relevance = clampRelevance(analysis.relevance);
+  const whyItMatters = analysis.whyItMatters.trim();
+  const overview = analysis.overview.trim();
 
   return (
     <article
       className={cn(
-        "flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-paper md:p-6",
+        "flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-paper md:p-6 hc:border-2",
         className,
       )}
+      aria-label={paper.title}
     >
-      <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
-        <p className="min-w-0 truncate">
-          {[paper.venue, paper.year].filter(Boolean).join(", ") || "Venue not listed"}
+      {/* Catalogue-card header: the one ruled line under the meta row. */}
+      <header className="-mx-5 flex items-start justify-between gap-3 border-b border-primary/30 px-5 pb-3 md:-mx-6 md:px-6 hc:border-primary">
+        <p className="min-w-0 text-sm text-muted-foreground">
+          <span className="block truncate font-medium text-foreground/80">{meta.venue}</span>
+          <span className="block truncate">
+            {meta.author}, {meta.year}
+          </span>
         </p>
         <CredibilityBadge credibility={credibility} />
-      </div>
+      </header>
 
-      <h2 className="line-clamp-3 font-display text-xl leading-snug font-semibold text-primary">
+      <h2 className="line-clamp-3 font-display text-xl leading-snug font-semibold text-balance text-primary">
         {paper.title}
       </h2>
 
-      <p className="rounded-xl bg-highlight px-3 py-2 font-medium text-highlight-foreground">
-        {analysis.whyItMatters}
+      <p className="rounded-xl bg-highlight px-3 py-2 font-medium text-highlight-foreground hc:border-2 hc:border-primary">
+        <span className="sr-only">Why it matters: </span>
+        {whyItMatters || <span className="opacity-70">Why it matters: {NOT_STATED}</span>}
       </p>
 
-      <p className="max-w-[65ch] text-base">{analysis.overview}</p>
+      <p className="max-w-[65ch] text-base leading-relaxed">
+        {overview || <span className="text-muted-foreground">Overview {NOT_STATED}.</span>}
+      </p>
 
-      {analysis.stances.length > 0 && (
+      {stances.length > 0 && (
         <ul className="flex flex-wrap gap-2" aria-label="Stance toward your claims">
-          {analysis.stances.map((s) => (
+          {stances.map((s) => (
             <li key={s.claimId}>
-              <StanceChip stance={s.stance} claim={claimLabel(s.claimId)} />
+              <StanceChip stance={s.stance} claim={s.label} claimText={s.claimText} note={s.note} />
             </li>
           ))}
         </ul>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 text-sm">
+        <span id={`relevance-${paper.id}`} className="text-muted-foreground">
+          Relevance
+        </span>
         <div
-          className="h-2 flex-1 overflow-hidden rounded-full bg-secondary"
+          className="h-2 flex-1 overflow-hidden rounded-full bg-secondary hc:border hc:border-primary"
           role="meter"
-          aria-label="Relevance to your project"
+          aria-labelledby={`relevance-${paper.id}`}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-valuenow={analysis.relevance}
+          aria-valuenow={relevance}
         >
-          <div
-            className="h-full rounded-full bg-primary"
-            style={{ width: `${analysis.relevance}%` }}
-          />
+          <div className="h-full rounded-full bg-primary" style={{ width: `${relevance}%` }} />
         </div>
-        <span className="w-8 text-right text-sm font-medium tabular-nums">
-          {analysis.relevance}
+        <span className="w-8 text-right font-medium tabular-nums" aria-hidden>
+          {relevance}
         </span>
       </div>
 
