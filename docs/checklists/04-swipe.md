@@ -7,7 +7,7 @@
 
 - [x] SW-01 (PR #3) ⚡ Card component (title, venue/year, overview, why-it-matters, relevance bar, stance chips, credibility badge with tooltip of inputs) — static version exists in `components/swipe/paper-card.tsx`
 - [x] SW-02 (PR #4) ⚡ Gesture deck with `motion` (drag, fling thresholds, undo last), keyboard ← → ↑ Z
-- [~] @Mr-Moody feat/swipe-detail-sheet SW-03 Detail sheet (full abstract, methodology, limitations, links)
+- [x] SW-03 (PR #?) Detail sheet (full abstract, methodology, limitations, links)
 - [ ] SW-04 Queue state: prefetch/analyse 3 ahead, skeletons, empty/"load more" states
 - [x] SW-05 (PR #5) Persist swipes to Supabase; optimistic UI
 - [ ] SW-06 Mobile polish + reduced-motion fallback (buttons)
