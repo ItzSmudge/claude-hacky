@@ -1,0 +1,71 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [dev, main]
+    types: [opened, edited, synchronize, reopened]
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Dummy public env so `next build` can run without secrets.
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54421
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-dummy-anon-key
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            chore
+            docs
+            refactor
+            style
+            test
+            perf
+            build
+            ci
+            revert
+          scopes: |
+            marketing
+            search
+            ai
+            swipe
+            projects
+            library
+            export
+            group
+            ranking
+            a11y
+            design
+            db
+            infra
+            deps
+            contracts
+            release
+            checklist
+          subjectPattern: ^[a-z].*$
+          subjectPatternError: "PR title subject must start lowercase: type(scope): imperative summary"
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4 # version read from packageManager
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm build
