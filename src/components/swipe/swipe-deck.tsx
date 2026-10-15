@@ -13,11 +13,13 @@ import Link from "next/link";
 import {
   useEffect,
   useEffectEvent,
+  useImperativeHandle,
   useLayoutEffect,
   useReducer,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
+  type Ref,
 } from "react";
 import { cn } from "@/lib/utils";
 import type {
@@ -39,6 +41,11 @@ import {
 } from "./deck-state";
 import { classifyGesture } from "./gesture";
 import { PaperCard } from "./paper-card";
+
+/** Lets a parent (the detail sheet) decide the top card through the deck's own exit path. */
+export interface SwipeDeckHandle {
+  decide: (decision: SwipeDecision) => void;
+}
 
 export interface DeckItem {
   paper: Paper;
@@ -85,7 +92,9 @@ export function SwipeDeck({
   onEmpty,
   libraryHref,
   className,
+  ref,
 }: {
+  ref?: Ref<SwipeDeckHandle>;
   items: DeckItem[];
   claims: ProjectContext["claims"];
   onDecide?: (paperId: string, decision: SwipeDecision) => void;
@@ -170,13 +179,15 @@ export function SwipeDeck({
 
   const canCommit = () => top !== null && !busy.current && !dragging.current;
 
-  async function commit(decision: SwipeDecision, velocity = 0) {
+  async function commit(decision: SwipeDecision, velocity = 0, focusDeck = false) {
     if (!top || busy.current) return;
     busy.current = true;
     const paper = top.paper;
     const active = document.activeElement;
     // Keep keyboard focus: the card is leaving, or this button is about to be disabled (last card).
+    // `focusDeck`: the decision came from outside the deck (detail sheet), so land focus here.
     const moveFocus =
+      focusDeck ||
       (cardRef.current?.contains(active) ?? false) ||
       (left === 1 && (sectionRef.current?.contains(active) ?? false));
 
@@ -205,6 +216,12 @@ export function SwipeDeck({
     if (moveFocus) regionRef.current?.focus();
     safely(onDecide, paper.id, decision);
   }
+
+  useImperativeHandle(ref, () => ({
+    decide: (decision) => {
+      if (canCommit()) void commit(decision, 0, true);
+    },
+  }));
 
   function undo() {
     if (busy.current) return;

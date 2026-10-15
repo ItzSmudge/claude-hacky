@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { SwipeRequest } from "@/lib/api-schemas";
 import type { ProjectContext } from "@/types/domain";
-import { SwipeDeck, type DeckItem } from "./swipe-deck";
+import { DetailSheet } from "./detail-sheet";
+import { SwipeDeck, type DeckItem, type SwipeDeckHandle } from "./swipe-deck";
 import { classifyStatus, createSwipeSync, type SendResult, type SwipeOp } from "./swipe-sync";
 
 const TITLE_MAX = 60;
@@ -85,8 +86,8 @@ function createPersistence(projectId: string, titleOf: (paperId: string) => stri
 }
 
 /**
- * SwipeDeck that saves every decision to Supabase (SW-05). Optimistic: the deck never waits;
- * writes run in the background and a toast offers Retry if one fails.
+ * SwipeDeck that saves every decision to Supabase (SW-05) and opens the detail sheet (SW-03).
+ * Optimistic: the deck never waits; writes run in the background and a toast offers Retry.
  */
 export function PersistedSwipeDeck({
   projectId,
@@ -112,13 +113,31 @@ export function PersistedSwipeDeck({
     persist.current(op);
   };
 
+  const deck = useRef<SwipeDeckHandle>(null);
+  // Item stays set while the sheet animates closed.
+  const [details, setDetails] = useState<{ item: DeckItem; open: boolean } | null>(null);
+
   return (
-    <SwipeDeck
-      items={items}
-      claims={claims}
-      libraryHref={libraryHref}
-      onDecide={(paperId, decision) => enqueue({ paperId, decision })}
-      onUndo={(paperId) => enqueue({ paperId, decision: null })}
-    />
+    <>
+      <SwipeDeck
+        ref={deck}
+        items={items}
+        claims={claims}
+        libraryHref={libraryHref}
+        onDecide={(paperId, decision) => enqueue({ paperId, decision })}
+        onUndo={(paperId) => enqueue({ paperId, decision: null })}
+        onDetails={(paperId) => {
+          const item = items.find((i) => i.paper.id === paperId);
+          if (item) setDetails({ item, open: true });
+        }}
+      />
+      <DetailSheet
+        item={details?.item ?? null}
+        claims={claims}
+        open={details?.open ?? false}
+        onOpenChange={(open) => setDetails((d) => (d ? { ...d, open } : d))}
+        onDecide={(decision) => deck.current?.decide(decision)}
+      />
+    </>
   );
 }
