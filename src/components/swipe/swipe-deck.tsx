@@ -7,6 +7,7 @@ import {
   useMotionValue,
   useReducedMotion,
   useTransform,
+  type PanInfo,
 } from "motion/react";
 import Link from "next/link";
 import {
@@ -194,18 +195,19 @@ export function SwipeDeck({
     dragControls.start(event);
   }
 
-  function endDrag() {
+  // Velocity must come from PanInfo: the motion value's own velocity reads 0 once the drag ends.
+  function endDrag(_event: PointerEvent, info: PanInfo) {
     const outcome = pointerCancelled.current
       ? null
       : classifyGesture({
           x: x.get(),
           y: y.get(),
-          vx: x.getVelocity(),
-          vy: y.getVelocity(),
+          vx: info.velocity.x,
+          vy: info.velocity.y,
           width: cardRef.current?.offsetWidth ?? 0,
         });
     if (outcome === "save" || outcome === "skip") {
-      void commit(outcome, x.getVelocity());
+      void commit(outcome, info.velocity.x);
       return;
     }
     animate(x, 0, SPRING);
@@ -273,7 +275,9 @@ export function SwipeDeck({
           <motion.div
             key={top.paper.id}
             // A back card promoted to the top remounts here; start at depth-1 and spring forward.
-            initial={reduceMotion ? false : { scale: 0.96, y: 8 }}
+            // Same `initial` on server and client (useReducedMotion is null during SSR); reduced
+            // motion gets a zero-duration transition below instead.
+            initial={{ scale: 0.96, y: 8 }}
             animate={{ scale: 1, y: 0 }}
             transition={reduceMotion ? { duration: 0 } : SPRING}
             className="origin-top"
