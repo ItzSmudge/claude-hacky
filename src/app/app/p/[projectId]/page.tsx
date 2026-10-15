@@ -59,7 +59,8 @@ async function Deck({ params }: Pick<PageProps<"/app/p/[projectId]">, "params">)
     <PersistedSwipeDeck
       key={projectId}
       projectId={projectId}
-      items={fixturePapers.filter((item) => !swiped.has(item.paper.id))}
+      query={fixtureProject.query}
+      swipedIds={[...swiped]}
       initialHistory={initialHistory}
       now={now}
       claims={fixtureProject.context.claims}
