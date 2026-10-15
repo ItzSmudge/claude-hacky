@@ -135,7 +135,7 @@ describe("searchOpenAlex", () => {
     });
   const status = (code: number, headers: Record<string, string> = {}) =>
     new Response("{}", { status: code, headers });
-  const sleep = vi.fn(async () => {});
+  const sleep = vi.fn<(ms: number, signal?: AbortSignal) => Promise<void>>(async () => {});
   const urlOf = (fetch: ReturnType<typeof vi.fn>, call = 0) =>
     new URL((fetch.mock.calls[call] as unknown as [string])[0]);
 
