@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Fraunces, Inter, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { THEME_COLOR_DARK, THEME_COLOR_LIGHT } from "@/components/theme/theme-colors";
 import { themeBootstrapScript } from "@/components/theme/theme-script";
 import { clientEnv } from "@/lib/env";
 import "./globals.css";
@@ -19,8 +20,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fdfaf0" },
-    { media: "(prefers-color-scheme: dark)", color: "#011d1c" },
+    { media: "(prefers-color-scheme: light)", color: THEME_COLOR_LIGHT },
+    { media: "(prefers-color-scheme: dark)", color: THEME_COLOR_DARK },
   ],
 };
 

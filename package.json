@@ -20,6 +20,7 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:types": "supabase gen types typescript --db-url postgresql://postgres:postgres@127.0.0.1:54422/postgres > src/types/database.ts",
+    "db:smoke": "node --env-file=.env.local scripts/db-smoke.mjs",
     "db:push:prod": "supabase db push",
     "wt": "bash scripts/wt.sh",
     "prepare": "husky"
