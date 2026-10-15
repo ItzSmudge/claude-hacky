@@ -153,6 +153,9 @@ describe("searchOpenAlex", () => {
   const urlOf = (fetch: ReturnType<typeof vi.fn>, call = 0) =>
     new URL((fetch.mock.calls[call] as unknown as [string])[0]);
 
+  const TYPES =
+    "type:article|review|conference-paper|preprint|book-chapter|book|dissertation|report";
+
   it("builds the request URL", async () => {
     const fetch = vi.fn(async () => body([works.real!]));
     await searchOpenAlex(
@@ -166,14 +169,14 @@ describe("searchOpenAlex", () => {
     expect(url.searchParams.get("per-page")).toBe("50");
     expect(url.searchParams.get("mailto")).toBe("team@example.com");
     expect(url.searchParams.get("select")).toContain("abstract_inverted_index");
-    expect(url.searchParams.has("filter")).toBe(false);
+    expect(url.searchParams.get("filter")).toBe(TYPES);
   });
 
   it.each([
-    [{ yearFrom: 2015, yearTo: 2020 }, "publication_year:2015-2020"],
-    [{ yearFrom: 2015 }, "publication_year:>2014"],
-    [{ yearTo: 2020 }, "publication_year:<2021"],
-    [{ yearFrom: 2020, yearTo: 2015 }, "publication_year:2015-2020"],
+    [{ yearFrom: 2015, yearTo: 2020 }, `${TYPES},publication_year:2015-2020`],
+    [{ yearFrom: 2015 }, `${TYPES},publication_year:>2014`],
+    [{ yearTo: 2020 }, `${TYPES},publication_year:<2021`],
+    [{ yearFrom: 2020, yearTo: 2015 }, `${TYPES},publication_year:2015-2020`],
   ])("filters years %j", async (years, filter) => {
     const fetch = vi.fn(async () => body([]));
     await searchOpenAlex({ q: "x", ...years }, { fetch, mailto: undefined, sleep });
