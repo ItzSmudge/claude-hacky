@@ -22,14 +22,19 @@ const DOI = /\b10\.\d{4,9}\/\S/;
  * express a word count, so zod enforces it and the description tells the model the limit up
  * front (avoiding a repair call).
  */
-export const words = (max: number, { noLinks = false }: { noLinks?: boolean } = {}) =>
+export const words = (
+  max: number,
+  { noLinks = false, slack = 1 }: { noLinks?: boolean; slack?: number } = {},
+) =>
   z
     .string()
     .trim()
     .min(1, "Must not be empty.")
     .superRefine((text, ctx) => {
       const n = countWords(text);
-      if (n > max)
+      // `slack` > 1: accept a slightly long reply (the model still sees `max`) and let code fit it
+      // to the exact limit afterwards, instead of failing the whole response (see fit-words.ts).
+      if (n > Math.floor(max * slack))
         ctx.addIssue({ code: "custom", message: `Use at most ${max} words (got ${n}).` });
       if (noLinks && (LINK.test(text) || DOI.test(text)))
         ctx.addIssue({ code: "custom", message: "Do not include links or DOIs." });
@@ -37,7 +42,7 @@ export const words = (max: number, { noLinks = false }: { noLinks?: boolean } = 
     .describe(`At most ${max} words.`);
 
 /** Like `words`, but tells the model to write "not stated" when the source is silent. */
-export const notStated = (max: number, options?: { noLinks?: boolean }) =>
+export const notStated = (max: number, options?: { noLinks?: boolean; slack?: number }) =>
   words(max, options).describe(
     `At most ${max} words, or exactly "${NOT_STATED}" if the source does not say.`,
   );
@@ -50,34 +55,52 @@ export const normaliseNotStated = (text: string) => (MISSING.test(text.trim()) ?
  * AI-03: what the FAST model returns for one paper. Code adds paperId/projectId and cleans up
  * stances (see `finalisePaperAnalysis`); nothing bibliographic is generated.
  */
-const card = { noLinks: true };
+/** The exact word limits on card text; one source for the reply schema, the fitter and the eval. */
+export const PAPER_CARD_LIMITS = {
+  overview: 35,
+  whyItMatters: 20,
+  relevanceReason: 8,
+  methodology: 15,
+  limitations: 15,
+  note: 12,
+} as const;
+const L = PAPER_CARD_LIMITS;
+// Card text gets slack: paper-analysis.ts fits it to the exact limit in whole sentences.
+const card = { noLinks: true, slack: 1.5 };
 export const paperAnalysisOutputSchema = z.object({
-  overview: notStated(35, card).describe(
-    `Plain-language summary of the abstract in at most 35 words, or exactly "${NOT_STATED}" if there is no abstract.`,
+  overview: notStated(L.overview, card).describe(
+    `Plain-language summary of the abstract in at most ${L.overview} words, or exactly "${NOT_STATED}" if there is no abstract.`,
   ),
-  whyItMatters: notStated(20, card).describe(
-    `One line, at most 20 words: why this paper matters for the student's brief, or "${NOT_STATED}".`,
+  whyItMatters: notStated(L.whyItMatters, card).describe(
+    `One line, at most ${L.whyItMatters} words: why this paper matters for the student's brief, or "${NOT_STATED}".`,
   ),
   relevance: z.int().min(0).max(100).describe("Relevance to the brief, 0–100, per the rubric."),
-  relevanceReason: words(8, card).describe(
-    "At most 8 words: the main reason for the relevance score.",
+  relevanceReason: words(L.relevanceReason, card).describe(
+    `At most ${L.relevanceReason} words: the main reason for the relevance score.`,
   ),
   stances: z
     .array(
       z.object({
         claimId: z.string().describe("A claim id from the project context, e.g. c1."),
         stance: stanceSchema,
-        note: notStated(12, card).describe(
-          `At most 12 words of evidence from the abstract, or exactly "${NOT_STATED}".`,
+        note: notStated(L.note, card).describe(
+          `At most ${L.note} words of evidence from the abstract, or exactly "${NOT_STATED}".`,
         ),
       }),
     )
     .describe("Exactly one entry per claim id in the project context."),
-  methodology: notStated(15, card),
-  limitations: notStated(15, card),
+  methodology: notStated(L.methodology, card),
+  limitations: notStated(L.limitations, card),
   useAs: useAsSchema,
 });
 export type PaperAnalysisOutput = z.infer<typeof paperAnalysisOutputSchema>;
+
+/**
+ * AI-03 word-limit fix: the reply to "make this field concise". Strict (no slack); the model may
+ * say "not stated" rather than guess. paper-analysis.ts also rejects any new number, year or name.
+ */
+export const shortenedFieldOutputSchema = (max: number) =>
+  z.object({ text: notStated(max, { noLinks: true }) });
 
 /**
  * AI-02: what the SMART model returns for a brief. Code assigns claim ids c1…cn, dedupes and

@@ -5,7 +5,8 @@
  * Pure: no API calls. Used by `paper-analysis.eval.live.test.ts`.
  */
 import type { Paper, PaperAnalysis, ProjectContext } from "@/types/domain";
-import { NOT_STATED, countWords } from "./schemas";
+import { endsMidClause } from "./fit-words";
+import { NOT_STATED, PAPER_CARD_LIMITS, countWords } from "./schemas";
 
 export interface EvalIssues {
   failures: string[];
@@ -21,15 +22,8 @@ export interface EvalRow {
   error?: string;
 }
 
-// Mirrors paperAnalysisOutputSchema's word limits.
-const LIMITS = {
-  overview: 35,
-  whyItMatters: 20,
-  relevanceReason: 8,
-  methodology: 15,
-  limitations: 15,
-} as const;
-const NOTE_LIMIT = 12;
+// The same limits paperAnalysisOutputSchema and the fitter use (one source in schemas.ts).
+const { note: NOTE_LIMIT, ...LIMITS } = PAPER_CARD_LIMITS;
 const TITLE_RUN = 6;
 
 const LINK = /\bhttps?:\/\/|\bwww\.\S/i;
@@ -169,6 +163,8 @@ export function checkAnalysis(
       );
     if (ET_AL.test(text) || PAREN_CITATION.test(text))
       failures.push(`${name}: contains a citation`);
+    // Card text is fitted in whole sentences (paper-analysis.ts), never cut part-way.
+    if (endsMidClause(text)) failures.push(`${name}: ends mid-clause`);
     for (const year of text.match(YEAR) ?? [])
       if (!sourceYears.has(year)) failures.push(`${name}: year ${year} is not in the source`);
   }
