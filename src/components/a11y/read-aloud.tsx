@@ -34,7 +34,7 @@ function loadRate() {
 const synth = () =>
   typeof window !== "undefined" && "speechSynthesis" in window ? window.speechSynthesis : null;
 
-function speak(id: string, parts: readonly string[]) {
+export function speak(id: string, parts: readonly string[]) {
   const s = synth();
   if (!s) return;
   s.cancel();
@@ -60,7 +60,7 @@ function speak(id: string, parts: readonly string[]) {
   });
 }
 
-function stop() {
+export function stop() {
   synth()?.cancel();
   if (speakingId !== null) {
     speakingId = null;
