@@ -6,5 +6,5 @@
 **Can start with fixtures?** Yes — seeded demo project
 
 - [ ] PR-01 ⚡ New project flow: question/task text + optional brief upload → storage → AI-02 → show parsed claims (editable)
-- [~] @ItzSmudge feat/projects-history-sidebar PR-02 ⚡ History sidebar (past projects, counts), rename/delete
+- [x] PR-02 ⚡ History sidebar (past projects, counts), rename/delete
 - [ ] PR-03 Optional Google upgrade of the anonymous session (anonymous sign-in itself shipped in PR-02)
