@@ -9,15 +9,15 @@ import { extractFeatures, type SwipeSample } from "@/lib/ranking";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { SwipeDecision } from "@/types/domain";
 
-// Owner: swipe (SW-*). Papers are fixtures until SW-04 (queue); swipes persist via SW-05;
-// earlier swipes seed the ranking (RK-02).
+// Owner: swipe (SW-*). Papers come from the queue (SW-04), with fixtures as a fallback until
+// /api/analyse exists (AI-04); swipes persist via SW-05; earlier swipes seed the ranking (RK-02).
 export default function DeckPage({ params }: PageProps<"/app/p/[projectId]">) {
   // Clip the fling at the screen edge (bleeds into main's gutter) without cutting focus rings or shadows.
   return (
     <div className="-mx-4 overflow-x-clip px-4 md:-mx-8 md:px-8">
       <div className="mx-auto flex w-full max-w-md flex-col gap-4">
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="font-display text-2xl font-semibold text-primary md:text-3xl">
+        <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+          <h1 className="min-w-56 flex-1 font-display text-2xl font-semibold text-primary md:text-3xl">
             {fixtureProject.title}
           </h1>
           {/* GR-01: share the join code / link */}
@@ -42,7 +42,7 @@ async function Deck({ params }: Pick<PageProps<"/app/p/[projectId]">, "params">)
   // Request time: one clock for year features on server (history) and client (deck items).
   await connection();
   const now = new Date().toISOString();
-  const history = await swipeHistory(projectId);
+  const [history, query] = await Promise.all([swipeHistory(projectId), projectQuery(projectId)]);
   const swiped = new Set(history.map((s) => s.paperId));
   // Features of papers already decided, so a reload resumes the learnt order.
   // TODO(SW-04): look these up in the `papers` cache once the deck isn't fixture-only.
@@ -59,13 +59,33 @@ async function Deck({ params }: Pick<PageProps<"/app/p/[projectId]">, "params">)
     <PersistedSwipeDeck
       key={projectId}
       projectId={projectId}
-      items={fixturePapers.filter((item) => !swiped.has(item.paper.id))}
+      query={query}
+      swipedIds={[...swiped]}
+      fallbackItems={fixturePapers.filter((item) => !swiped.has(item.paper.id))}
       initialHistory={initialHistory}
       now={now}
       claims={fixtureProject.context.claims}
       libraryHref={`/app/p/${projectId}/library`}
     />
   );
+}
+
+/** The project's own search query; the demo's when it has none or can't be read. */
+async function projectQuery(projectId: string): Promise<string> {
+  if (!z.uuid().safeParse(projectId).success) return fixtureProject.query;
+  // Request time only: supabase-js reads the clock to check token expiry.
+  await connection();
+  const supabase = await getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("projects")
+    .select("query")
+    .eq("id", projectId)
+    .maybeSingle();
+  if (error) {
+    console.error("[deck] reading project query failed", error.code, error.message);
+    return fixtureProject.query;
+  }
+  return data?.query?.trim() || fixtureProject.query;
 }
 
 /** The signed-in user's swipes here, oldest first, so a reload resumes the deck. Empty on any failure. */
