@@ -30,3 +30,14 @@ export class AiOutputError extends Error {
     );
   }
 }
+
+/** The uploaded brief or the question can't be used. `message` is safe to show the student. */
+export class BriefInputError extends Error {
+  override name = "BriefInputError";
+  constructor(
+    readonly reason: "unsupported" | "too-large" | "unreadable" | "empty-question",
+    message: string,
+  ) {
+    super(message);
+  }
+}
