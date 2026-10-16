@@ -3,6 +3,7 @@
 import { Bookmark, ExternalLink, FileText, Link2, X } from "lucide-react";
 import { useRef, useSyncExternalStore, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { ReadAloud } from "@/components/a11y/read-aloud";
 import {
   Sheet,
   SheetClose,
@@ -189,6 +190,19 @@ export function DetailSheet({
               )}
             </p>
           </SheetDescription>
+
+          {/* AX-02: why it matters, overview and the full abstract, in reading order. */}
+          <ReadAloud
+            parts={[
+              paper.title,
+              whyItMatters ? `Why it matters: ${whyItMatters}` : "",
+              overview ?? "",
+              paper.abstract ? `Abstract. ${paper.abstract}` : "",
+            ]}
+            what="this paper's details"
+            ringOffset="focus-visible:ring-offset-popover"
+            className="-my-2 self-start"
+          />
 
           {overview && <p className="max-w-[65ch] text-base leading-relaxed">{overview}</p>}
 

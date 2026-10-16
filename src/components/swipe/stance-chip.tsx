@@ -4,13 +4,21 @@ import { cn } from "@/lib/utils";
 import type { Stance } from "@/types/domain";
 
 const STANCE: Record<Stance, { label: string; Icon: LucideIcon; className: string }> = {
-  supports: { label: "Supports", Icon: ThumbsUp, className: "text-supports border-supports/40" },
+  supports: {
+    label: "Supports",
+    Icon: ThumbsUp,
+    className: "text-supports border-supports/40 hc:border-current",
+  },
   challenges: {
     label: "Challenges",
     Icon: Swords,
-    className: "text-challenges border-challenges/40",
+    className: "text-challenges border-challenges/40 hc:border-current",
   },
-  neutral: { label: "Neutral", Icon: Minus, className: "text-neutral border-neutral/40" },
+  neutral: {
+    label: "Neutral",
+    Icon: Minus,
+    className: "text-neutral border-neutral/40 hc:border-current",
+  },
   unclear: {
     label: "Unclear",
     Icon: HelpCircle,

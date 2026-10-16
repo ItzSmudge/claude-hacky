@@ -190,3 +190,67 @@ Friendly, short, student-to-student. "Swipe right on research." "Every citation 
 
 - ✅ Use tokens only; check contrast for any new pairing; keyboard focus ring `ring-2 ring-ring ring-offset-2`.
 - ❌ No new hex values, no pure `#000`/`#FFF` backgrounds (except high-contrast mode), no gradients other than teal-700 → teal-900, no more than one primary button per view.
+
+## Marketing patterns (added in MK-01)
+
+Taken from the shipped landing page (`src/app/(marketing)/page.tsx`). Reuse these; don't invent new section styles.
+
+### Section rhythm
+
+Bands alternate so the page never has two of the same surface in a row:
+
+| Order | Band                    | Classes                                                                     |
+| ----- | ----------------------- | --------------------------------------------------------------------------- |
+| 1     | Hero, teal              | `bg-teal-700 text-cream-200 hc:bg-teal-950`                                 |
+| 2     | Page surface            | `bg-background`                                                             |
+| 3     | Cream band              | `bg-secondary text-secondary-foreground`                                    |
+| 4     | Teal band (trust/proof) | `bg-teal-700 text-cream-100 hc:bg-teal-950`                                 |
+| 5     | Closing CTA, page       | `bg-background`                                                             |
+
+- Every section: `px-4 md:px-8 py-16 md:py-24`, inner wrapper `mx-auto max-w-6xl`, `aria-labelledby` pointing at its `<h2>`.
+- Heading block: small uppercase **eyebrow** (`text-sm font-medium tracking-wide uppercase`, muted) above a Fraunces `<h2>` (`font-display text-3xl md:text-4xl font-semibold text-balance text-primary`). On teal bands the h2 is `text-cream-200` and the eyebrow `text-cream-300`.
+- One primary CTA per band. The hero and closing CTA both say "Try it — no signup" and link to `/app`.
+- Teal bands stay teal in dark mode (they are brand surfaces); `hc:` swaps them to `teal-950`.
+
+### Cards on bands
+
+- On page/cream bands: `rounded-2xl border border-border bg-card p-5 md:p-6 shadow-paper hc:border-2`.
+- On teal bands: `rounded-2xl border border-teal-600 bg-teal-800 p-5 md:p-6 hc:border-2 hc:border-cream-200`. The teal-600 border is decoration only (contrast with the card is low by design); the text carries the meaning.
+- Numbered steps: a `size-10 rounded-full bg-primary` badge (`aria-hidden`) plus a visually hidden "Step N:" in the heading.
+- Not-yet-built features get a `Coming soon` chip (`rounded-full border border-border bg-muted text-xs text-muted-foreground`), never a hidden or disabled card.
+
+### Contrast on teal-700 (WCAG)
+
+| Text                 | Ratio |
+| -------------------- | ----- |
+| cream-100 (body)     | 8.1:1 |
+| cream-200 (headings) | 7.2:1 |
+| cream-300 (eyebrow)  | 6.2:1 |
+
+On teal-800 cards, cream-100 is 10.7:1. Cream-200 button with teal-900 text is 12.2:1. Don't use cream-400 or darker for text on teal.
+
+### Focus on teal
+
+Default `ring-ring` is too weak on teal. On any teal band use:
+`focus-visible:ring-2 focus-visible:ring-cream-200 focus-visible:ring-offset-2 focus-visible:ring-offset-teal-700 focus-visible:outline-hidden hc:focus-visible:ring-4`
+
+### Illustration style
+
+- The hero's illustration is the live demo card stack with real fixture papers, not artwork. Prefer showing the product over drawing it.
+- Icons: `lucide-react`, `strokeWidth={1.75}`, `aria-hidden` when next to text, `size-5` in cards, `size-6` for feature tiles.
+- If a standalone illustration is needed (index cards, bookmarks, stacked papers): one stroke weight, rounded caps and joins, `currentColor` stroke in teal, at most one cream fill, no gradients, no people, no stock photos. Decorative art is `aria-hidden`; if it carries meaning, give it a text alternative.
+- Never show invented paper details in imagery. Use fixture papers only.
+
+### Empty and loading states
+
+- **Anatomy:** a short Fraunces heading saying what's true ("You've seen every paper"), one muted line of why or what's next, and **one** action button. No illustration needed on in-app states.
+- **Inline empty (inside a list):** one `text-sm text-muted-foreground` sentence in the user's voice, no button (e.g. "No saved paper challenges this yet.").
+- **Loading:** `Skeleton` blocks shaped like the thing that is loading, inside `role="status" aria-busy="true"` with a `sr-only` "Loading …" line. Always add `motion-reduce:animate-none`. Use `DeckSkeleton` for the whole deck and `CardSkeleton` when only the card is pending.
+- **Load more:** a secondary `Button` below the empty copy. Say what it does ("Load more papers"), not "Retry".
+- **Errors:** say what happened and what the person can do; never show raw error text or stack traces.
+
+### Motion on marketing
+
+- The hero stack runs on the same spring as the deck (stiffness 300, damping 30), loops save, save, skip, and is `aria-hidden` because the hero copy says the same thing.
+- Autoplay must be pausable ("Pause demo") and must not run under `prefers-reduced-motion`; hide the pause button with `motion-reduce:hidden`.
+- Elements that leave the screen (swiped cards) need `overflow-x-clip` on the section so phones don't scroll sideways.

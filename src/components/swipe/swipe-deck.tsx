@@ -13,6 +13,7 @@ import Link from "next/link";
 import {
   useEffect,
   useEffectEvent,
+  useId,
   useImperativeHandle,
   useLayoutEffect,
   useReducer,
@@ -22,6 +23,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type Ref,
 } from "react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type {
   Credibility,
@@ -31,6 +33,7 @@ import type {
   SwipeDecision,
 } from "@/types/domain";
 import { DeckControls } from "./deck-controls";
+import { CardSkeleton } from "./deck-skeleton";
 import {
   canUndo,
   createDeck,
@@ -103,6 +106,8 @@ export function SwipeDeck({
   onUndo,
   onDetails,
   onEmpty,
+  loading = false,
+  onLoadMore,
   libraryHref,
   className,
   ref,
@@ -114,6 +119,8 @@ export function SwipeDeck({
   onUndo?: (paperId: string, decision: SwipeDecision) => void;
   onDetails?: (paperId: string) => void;
   onEmpty?: () => void;
+  loading?: boolean;
+  onLoadMore?: () => void;
   libraryHref?: string;
   className?: string;
 }) {
@@ -132,6 +139,13 @@ export function SwipeDeck({
   const regionRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
+  const keysId = useId();
+  // Read the key instructions on the deck's first focus only; after that its name is enough.
+  const [keysHeard, setKeysHeard] = useState(false);
+  // Focus the deck once it shows the new top card: focusing earlier reads the departing title.
+  const focusAfterRender = useRef(false);
+  // The top card changed because of a decision or undo here (already announced).
+  const decidedHere = useRef(false);
   const deckRef = useRef(deck);
   const busy = useRef(false);
   const dragging = useRef(false);
@@ -140,7 +154,17 @@ export function SwipeDeck({
   const emptyFired = useRef(false);
 
   const [flash, setFlash] = useState<SwipeDecision | null>(null);
-  const [announcement, setAnnouncement] = useState("");
+  const [announcement, setAnnouncementText] = useState("");
+  const announceFrame = useRef(0);
+  const setAnnouncementNow = (text: string) => {
+    cancelAnimationFrame(announceFrame.current);
+    setAnnouncementText(text);
+  };
+  // Clear, then set on the next frame, so an identical message (undo/redo) is read again.
+  const setAnnouncement = (text: string) => {
+    setAnnouncementNow("");
+    announceFrame.current = requestAnimationFrame(() => setAnnouncementText(text));
+  };
 
   const top = current(deck);
   const topId = top?.paper.id ?? null;
@@ -177,6 +201,25 @@ export function SwipeDeck({
     opacity.jump(1);
   }, [topId, reduceMotion, x, y, opacity]);
 
+  useLayoutEffect(() => {
+    if (!focusAfterRender.current) return;
+    focusAfterRender.current = false;
+    regionRef.current?.focus();
+  }, [topId]);
+
+  // AX-01: a re-rank or refresh that drops the top card swaps it silently; say what's on top now.
+  const shownTopId = useRef(topId);
+  const announceSwap = useEffectEvent(() => {
+    const was = shownTopId.current;
+    shownTopId.current = topId;
+    const self = decidedHere.current;
+    decidedHere.current = false;
+    if (!self && was !== null && top && was !== topId) {
+      setAnnouncement(`Now on top: ${top.paper.title}.`);
+    }
+  });
+  useEffect(() => announceSwap(), [topId]);
+
   useEffect(() => {
     deckRef.current = deck;
   }, [deck]);
@@ -190,6 +233,20 @@ export function SwipeDeck({
       fireEmpty();
     }
   }, [left]);
+
+  // AX-01: the skeleton's status disappears silently when cards arrive; say so instead.
+  // Adjust-state-during-render (as for `items` above), not an effect.
+  const [wasLoading, setWasLoading] = useState(loading);
+  // Wait until `items` has been synced into the deck (above), or the batch that ended loading
+  // isn't in `deck` yet and this would say "No papers" as the cards arrive.
+  if (wasLoading !== loading && items === syncedItems) {
+    setWasLoading(loading);
+    if (wasLoading && top) {
+      setAnnouncementText(`${left} ${left === 1 ? "paper" : "papers"} ready. ${top.paper.title}.`);
+    } else if (wasLoading && total === 0) {
+      setAnnouncementText("No papers to swipe yet.");
+    }
+  }
 
   const canCommit = () => top !== null && !busy.current && !dragging.current;
 
@@ -224,11 +281,22 @@ export function SwipeDeck({
     setFlash(null);
     // The card may have been removed from `items` mid-animation: then nothing was decided.
     if (current(deckRef.current)?.paper.id !== paper.id) return;
+    // The card behind becomes the top one (re-ranking only reorders the cards after it).
+    const next = upcoming(deckRef.current, 1)[0];
+    // Only a real focus move reads the new label; the detail sheet may already have focused the deck.
+    const focusMoves = moveFocus && document.activeElement !== regionRef.current;
+    decidedHere.current = true;
     dispatch({ type: "decide", paperId: paper.id, decision });
+    // AX-01: say what's on screen now; focus often stays on Save/Skip. When focus moves to the
+    // deck, its label already reads the next title, so don't say it twice.
+    const leftNow = remaining(deckRef.current) - 1;
     setAnnouncement(
-      `${decision === "save" ? "Saved" : "Skipped"}: ${paper.title}. ${left - 1} left.`,
+      `${decision === "save" ? "Saved" : "Skipped"}. ` +
+        (next
+          ? `${leftNow} left.${focusMoves ? "" : ` Next: ${next.paper.title}.`}`
+          : "That's the end of the deck for now."),
     );
-    if (moveFocus) regionRef.current?.focus();
+    focusAfterRender.current = moveFocus;
     safely(onDecide, paper.id, decision);
   }
 
@@ -245,7 +313,9 @@ export function SwipeDeck({
   function revealAboveBar(event: ReactFocusEvent<HTMLElement>) {
     const bar = barRef.current?.getBoundingClientRect();
     if (!bar) return;
-    const overlap = event.target.getBoundingClientRect().bottom + 8 - bar.top;
+    const rect = event.target.getBoundingClientRect();
+    // Never scroll the top of what's focused (the card's title) off screen to show its bottom.
+    const overlap = Math.min(rect.bottom + 8 - bar.top, rect.top - 8);
     if (overlap > 0) window.scrollBy({ top: overlap, behavior: reduceMotion ? "auto" : "smooth" });
   }
 
@@ -255,11 +325,15 @@ export function SwipeDeck({
     if (!last) return;
     entering.current = { paperId: last.paperId, from: last.decision === "save" ? 1 : -1 };
     // Undo is about to be disabled (history empties): keep focus in the deck.
-    if (deck.history.length === 1 && sectionRef.current?.contains(document.activeElement)) {
-      regionRef.current?.focus();
-    }
+    const moveFocus =
+      deck.history.length === 1 && (sectionRef.current?.contains(document.activeElement) ?? false);
+    decidedHere.current = true;
     dispatch({ type: "undo" });
-    setAnnouncement(`Restored: ${deck.known[last.paperId]?.paper.title ?? "paper"}.`);
+    // When focus moves to the deck, its label already reads the restored title.
+    const title = deck.known[last.paperId]?.paper.title ?? "paper";
+    const focusMoves = moveFocus && document.activeElement !== regionRef.current;
+    setAnnouncement(`Restored${focusMoves ? "" : `: ${title}`}. ${left + 1} left.`);
+    focusAfterRender.current = moveFocus;
     if (!reduceMotion) haptic();
     safely(onUndo, last.paperId, last.decision);
   }
@@ -344,12 +418,30 @@ export function SwipeDeck({
       aria-label="Paper deck"
       className={cn("flex flex-col gap-4", className)}
     >
+      {/* Before the card so it's in reading order. Buttons first: screen-reader browse mode and
+          phones don't send arrow keys. */}
+      <p id={keysId} className="sr-only">
+        Use the Skip, Undo and Save buttons after the card. With a keyboard: right arrow saves, left
+        arrow skips{onDetails ? ", up arrow opens details" : ""} and Z undoes.
+      </p>
       <div
         ref={regionRef}
         role="group"
         tabIndex={-1}
-        aria-label={top ? `Paper ${deck.cursor + 1} of ${total}` : "No papers left"}
+        aria-keyshortcuts={onDetails ? "ArrowLeft ArrowRight ArrowUp Z" : "ArrowLeft ArrowRight Z"}
+        aria-describedby={keysHeard ? undefined : keysId}
+        aria-label={
+          top
+            ? `Paper ${deck.cursor + 1} of ${total}: ${top.paper.title}`
+            : loading
+              ? "Loading papers"
+              : "No papers left"
+        }
         onFocus={revealAboveBar}
+        // On blur, not focus: the description must still be there when the screen reader reads it.
+        onBlur={(event) => {
+          if (event.target === event.currentTarget) setKeysHeard(true);
+        }}
         className="grid rounded-2xl *:[grid-area:1/1] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
       >
         {stack.map((item, i) => {
@@ -410,6 +502,8 @@ export function SwipeDeck({
               </motion.span>
             </motion.div>
           </motion.div>
+        ) : loading ? (
+          <CardSkeleton />
         ) : (
           <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card p-8 text-center shadow-paper">
             <p className="font-display text-xl font-semibold text-primary">
@@ -419,6 +513,19 @@ export function SwipeDeck({
               <p className="text-muted-foreground">
                 Undo to revisit the last one{libraryHref ? ", or open your library." : "."}
               </p>
+            )}
+            {onLoadMore && (
+              <Button
+                variant="secondary"
+                className="min-h-11"
+                onClick={() => {
+                  // The button unmounts once loading starts: keep focus in the deck.
+                  regionRef.current?.focus();
+                  onLoadMore();
+                }}
+              >
+                Load more papers
+              </Button>
             )}
             {libraryHref && (
               <Link

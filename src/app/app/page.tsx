@@ -17,6 +17,15 @@ export default function ProjectsPage() {
           <Link href="/app/_styleguide">Styleguide</Link>
         </Button>
       </div>
+      <p className="text-muted-foreground">
+        Have a join code from a teammate?{" "}
+        <Link
+          href="/app/join"
+          className="rounded font-medium text-primary underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden"
+        >
+          Join their project
+        </Link>
+      </p>
     </div>
   );
 }
