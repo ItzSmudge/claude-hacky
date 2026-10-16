@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { analyseRelations } from "@/lib/ai";
 import type { ProjectRelations } from "@/lib/ai/schemas";
-import type { ApiError } from "@/lib/api-schemas";
+import { projectContextSchema, type ApiError } from "@/lib/api-schemas";
 import { loadSavedLibrary } from "@/lib/export";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -39,11 +39,18 @@ export async function POST(request: Request) {
       ? error(404, "Project not found")
       : error(500, "Couldn't load your library");
   const { title, claims, papers, analyses } = loaded.library;
+  // The parsed brief's topic says more than the name the student typed; fall back to that name.
+  const { data: project } = await supabase
+    .from("projects")
+    .select("context")
+    .eq("id", projectId)
+    .maybeSingle();
+  const topic = projectContextSchema.safeParse(project?.context).data?.topic || title;
 
   try {
     const relations = await analyseRelations({
       projectId,
-      topic: title,
+      topic,
       claims,
       papers,
       analyses,

@@ -7,12 +7,21 @@ import type { LoadResult } from "@/lib/export";
 const state = vi.hoisted(() => ({
   userId: "user-1" as string | undefined,
   library: undefined as unknown,
+  context: undefined as unknown,
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
   getSupabaseServerClient: async () => ({
     auth: {
       getClaims: async () => ({ data: state.userId ? { claims: { sub: state.userId } } : null }),
+    },
+    from: () => {
+      const builder = {
+        select: () => builder,
+        eq: () => builder,
+        maybeSingle: async () => ({ data: { context: state.context }, error: null }),
+      };
+      return builder;
     },
   }),
 }));
@@ -46,6 +55,7 @@ const post = (body: unknown) =>
 beforeEach(() => {
   state.userId = "user-1";
   state.library = library;
+  state.context = fixtureProject.context;
   analyseRelations.mockReset();
   analyseRelations.mockResolvedValue(fixtureRelations);
 });
@@ -59,11 +69,17 @@ describe("POST /api/analyse/relations", () => {
     expect(analyseRelations).toHaveBeenCalledWith(
       expect.objectContaining({
         projectId,
-        topic: fixtureProject.title,
+        topic: fixtureProject.context.topic,
         claims: fixtureProject.context.claims,
         papers: saved.map((f) => f.paper),
       }),
     );
+  });
+
+  it("falls back to the project title before a brief is parsed", async () => {
+    state.context = null;
+    await post({ projectId });
+    expect(analyseRelations.mock.calls[0]![0]).toMatchObject({ topic: fixtureProject.title });
   });
 
   it("rejects signed-out callers", async () => {

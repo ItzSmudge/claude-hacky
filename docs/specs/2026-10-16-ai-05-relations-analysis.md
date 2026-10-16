@@ -32,13 +32,15 @@ Schema + type live in `src/lib/ai/schemas.ts` (client-safe, so LB-04 can import 
   `PaperAnalysis.stances` (supports / challenges), so they always agree with the cards.
   Papers with no stored analysis simply don't appear in claim groups.
 - **Methods + pairs come from the SMART model** (`askJson`, `effort: "low"`, cached system
-  prompt). Each paper is shown as an alias `P1…Pn` with its title, year, and — when available —
+  prompt). Each paper is shown as an alias `P1…Pn` with its title, topics and — when available —
   the stored analysis' overview / methodology / useAs, otherwise the first ~120 words of its
   abstract. The model answers in aliases; code maps them back to paper ids and **discards
   unknown aliases**, self-pairs, duplicate pairs (unordered), and method clusters left with
   < 2 papers. Notes are `noLinks` and told to say "the first / the second paper", never titles,
-  authors, years or venues.
-- Loading reuses `loadSavedLibrary` (RLS as the user).
+  authors, years or venues; code also drops any label or note that
+  echoes a saved paper's title.
+- Loading reuses `loadSavedLibrary` (RLS as the user); the prompt topic is the parsed brief's
+  `context.topic`, falling back to the project title.
 
 ## Edge cases
 

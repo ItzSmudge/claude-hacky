@@ -108,17 +108,32 @@ export function buildRelationsPrompt(
   };
 }
 
+const normalise = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+
 /**
  * Pure. Aliases → ids. Unknown aliases are discarded, as are self-pairs, repeat pairs (either
- * order) and method groups left with fewer than two papers.
+ * order), method groups left with fewer than two papers, and any label or note that echoes a
+ * paper title (the model must never output titles; code renders them).
  */
 export function finaliseRelations(
   output: RelationsOutput,
   aliases: Map<string, string>,
+  titles: string[] = [],
 ): Pick<ProjectRelations, "methods" | "pairs"> {
   const idOf = (alias: string) => aliases.get(alias.trim().toUpperCase());
+  // Very short titles would match ordinary phrases, so only check those of 3+ words.
+  const known = titles.map(normalise).filter((t) => t.split(" ").length >= 3);
+  const echoesTitle = (text: string) => {
+    const haystack = ` ${normalise(text)} `;
+    return known.some((title) => haystack.includes(` ${title} `));
+  };
 
   const methods = output.methods.flatMap(({ label, papers }) => {
+    if (echoesTitle(label)) return [];
     const paperIds = [...new Set(papers.map(idOf).filter((id) => id !== undefined))];
     return paperIds.length >= 2 ? [{ label, paperIds }] : [];
   });
@@ -126,7 +141,7 @@ export function finaliseRelations(
   const seen = new Set<string>();
   const pairs = output.pairs.flatMap(({ a, b, kind, note }) => {
     const [idA, idB] = [idOf(a), idOf(b)];
-    if (!idA || !idB || idA === idB) return [];
+    if (!idA || !idB || idA === idB || echoesTitle(note)) return [];
     const key = [idA, idB].sort().join("\n");
     if (seen.has(key)) return [];
     seen.add(key);
@@ -167,20 +182,26 @@ export async function analyseRelations({
   };
   if (papers.length < 2) return { ...base, methods: [], pairs: [] };
 
-  const { system, messages, aliases } = buildRelationsPrompt(
-    { topic, claims },
-    selectPapers(papers, analyses),
-    analyses,
-  );
+  const selected = selectPapers(papers, analyses);
+  const { system, messages, aliases } = buildRelationsPrompt({ topic, claims }, selected, analyses);
   const { data } = await askJson({
     tier: "smart",
     schema: relationsOutputSchema,
     system,
     messages,
+    // Only the static instructions are cacheable (one call per request, context varies per
+    // project), so this mainly helps if the instructions ever grow past the cache minimum.
     cacheSystem: true,
     effort: "low",
     maxTokens: 8_000,
     signal,
   });
-  return { ...base, ...finaliseRelations(data, aliases) };
+  return {
+    ...base,
+    ...finaliseRelations(
+      data,
+      aliases,
+      selected.map((p) => p.title),
+    ),
+  };
 }

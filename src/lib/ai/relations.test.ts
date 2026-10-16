@@ -118,6 +118,38 @@ describe("finaliseRelations", () => {
   });
 });
 
+describe("finaliseRelations title guard", () => {
+  it("drops labels and notes that echo a paper title", () => {
+    const aliases = new Map([
+      ["P1", "id1"],
+      ["P2", "id2"],
+      ["P3", "id3"],
+    ]);
+    const titles = ["Social Media Use and Adolescent Mental Health", "Short"];
+    const output: RelationsOutput = {
+      methods: [
+        { label: "social media use and adolescent mental-health", papers: ["P1", "P2"] },
+        { label: "Short surveys", papers: ["P2", "P3"] },
+      ],
+      pairs: [
+        {
+          a: "P1",
+          b: "P2",
+          kind: "contrast",
+          note: 'Unlike "Social media use, and adolescent mental health", the second disagrees.',
+        },
+        { a: "P1", b: "P3", kind: "complement", note: "Both study adolescent mental health." },
+      ],
+    };
+    expect(finaliseRelations(output, aliases, titles)).toEqual({
+      methods: [{ label: "Short surveys", paperIds: ["id2", "id3"] }],
+      pairs: [
+        { a: "id1", b: "id3", kind: "complement", note: "Both study adolescent mental health." },
+      ],
+    });
+  });
+});
+
 describe("analyseRelations", () => {
   beforeEach(() => askJson.mockReset());
 
