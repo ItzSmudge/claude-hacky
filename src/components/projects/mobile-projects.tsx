@@ -1,10 +1,11 @@
 "use client";
 
-import { FolderOpen } from "lucide-react";
+import { FolderOpen, X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -20,7 +21,7 @@ type State =
   | { status: "error" };
 
 /** Phones: the history sidebar as a sheet. Fetches GET /api/projects each time it opens. */
-export function MobileProjects({ userId }: { userId?: string }) {
+export function MobileProjects({ userId, demoHref }: { userId?: string; demoHref: string }) {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<State>({ status: "loading" });
 
@@ -58,14 +59,29 @@ export function MobileProjects({ userId }: { userId?: string }) {
       </SheetTrigger>
       <SheetContent
         side="left"
+        showCloseButton={false}
         className="w-80 max-w-[85vw] gap-4 bg-sidebar p-4 text-sidebar-foreground"
       >
+        <SheetClose asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Close"
+            className="absolute top-2 right-2 size-11 rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar focus-visible:outline-hidden"
+          >
+            <X className="size-5" strokeWidth={1.75} aria-hidden />
+          </Button>
+        </SheetClose>
         <SheetHeader className="p-0">
           <SheetTitle className="font-display text-xl text-primary">Your projects</SheetTitle>
           <SheetDescription>Newest first. Saved papers and swipes per project.</SheetDescription>
         </SheetHeader>
         <nav aria-label="Your projects" aria-busy={state.status === "loading"}>
-          {state.status === "loading" && <p className="text-sm text-muted-foreground">Loading…</p>}
+          {state.status === "loading" && (
+            <p role="status" className="text-sm text-muted-foreground">
+              Loading your projects…
+            </p>
+          )}
           {state.status === "error" && (
             <p className="text-sm text-muted-foreground">
               Couldn&apos;t load your projects.{" "}
@@ -82,6 +98,7 @@ export function MobileProjects({ userId }: { userId?: string }) {
             <ProjectNav
               projects={state.projects}
               userId={userId}
+              demoHref={demoHref}
               onNavigate={() => setOpen(false)}
               onChanged={() => void load()}
             />

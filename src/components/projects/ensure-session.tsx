@@ -2,19 +2,24 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { toast } from "sonner";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 // One sign-in per page load, even if the effect runs twice (React dev) or several layouts mount.
+// PR-03: reset this to null on sign-out if that ever happens without a full reload.
 let signingIn: Promise<boolean> | null = null;
 
 function ensureAnonymousSession(): Promise<boolean> {
   signingIn ??= (async () => {
     const supabase = getSupabaseBrowserClient();
-    const { data } = await supabase.auth.getSession();
-    if (data.session) return false;
+    // getUser() asks the server, so a stale cookie can't make us skip sign-in.
+    const { data } = await supabase.auth.getUser();
+    if (data.user) return false;
     const { error } = await supabase.auth.signInAnonymously();
     if (error) {
       console.error("[auth] anonymous sign-in failed", error.status, error.message);
+      // Usually the per-IP anonymous sign-in limit (shared venue Wi-Fi); say so instead of failing silently.
+      toast.error("Couldn't start your session. Refresh the page to try again.");
       signingIn = null; // let a later render retry
       return false;
     }

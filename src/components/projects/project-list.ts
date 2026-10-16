@@ -1,9 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { projectContextSchema, type Project } from "@/lib/api-schemas";
+import type { z } from "zod";
+import {
+  projectContextSchema,
+  type Project,
+  type projectListResponseSchema,
+} from "@/lib/api-schemas";
 import type { Database, Json } from "@/types/database";
 
 /** A project in the history sidebar: the API shape plus counts (projectListResponseSchema). */
-export type ProjectListItem = Project & { savedCount: number; swipeCount: number };
+export type ProjectListItem = z.infer<typeof projectListResponseSchema>["projects"][number];
 
 export const PROJECT_COLUMNS = "id, owner_id, title, query, context, join_code, created_at";
 
@@ -68,6 +73,8 @@ export async function loadProjects(
   }
   if (projects.data.length === 0) return [];
 
+  // TODO: a counting view/RPC (own migration PR) — PostgREST caps rows at 1000, so very active
+  // projects would undercount here. Fine at demo scale.
   const swipes = await supabase
     .from("swipes")
     .select("project_id, paper_id, user_id, decision")
