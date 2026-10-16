@@ -187,4 +187,23 @@ describe("createSwipeSync", () => {
     expect(send).toHaveBeenCalledTimes(2);
     error.mockRestore();
   });
+
+  it("idle() resolves only once every write, including retries, has finished", async () => {
+    const { send, calls } = fakeSend();
+    const sync = createSwipeSync({ send, onFailure: vi.fn(), retryDelaysMs: [1000] });
+    await expect(sync.idle()).resolves.toBeUndefined();
+    sync.enqueue(save("a"));
+    sync.enqueue(skip("b"));
+    let done = false;
+    void sync.idle().then(() => (done = true));
+    calls[0]?.resolve("ok");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(done).toBe(false);
+    calls[1]?.resolve("retry");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(done).toBe(false);
+    calls[2]?.resolve("ok");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(done).toBe(true);
+  });
 });
