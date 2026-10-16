@@ -21,6 +21,7 @@ import { cardScript } from "@/components/a11y/speech";
 import type { VoiceCommand } from "@/components/a11y/voice";
 import { VoiceControl } from "@/components/a11y/voice-control";
 import { Button } from "@/components/ui/button";
+import { notifySwipesChanged } from "@/components/projects/saved-count";
 import {
   Dialog,
   DialogClose,
@@ -125,7 +126,12 @@ function createPersistence(projectId: string, titleOf: (paperId: string) => stri
   const toastId = (paperId: string) => `swipe-${paperId}`;
 
   const queue = createSwipeSync({
-    send: (op) => sendSwipe(projectId, op),
+    send: async (op) => {
+      const result = await sendSwipe(projectId, op);
+      // PR-04: the Library tab recounts (realtime can't safely tell it about undos).
+      if (result === "ok") notifySwipesChanged(projectId);
+      return result;
+    },
     onFailure: (op, reason) => {
       if (reason === "unauthorised") {
         if (warnedSignedOut) return;
