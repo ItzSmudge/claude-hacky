@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fixturePapers, fixtureProject } from "@/fixtures";
-import { readAnalyseStream } from "@/lib/ai/analyse-stream";
-import type { AnalyseStreamEvent } from "@/lib/api-schemas";
+import { analyseStreamEventSchema } from "@/lib/api-schemas";
 import type { Paper } from "@/types/domain";
 
 /** Rows each table returns, and upserts the route made. */
@@ -60,10 +59,14 @@ const post = (body: unknown) =>
     }),
   );
 
+/** Every line must be a contract-valid event. */
 async function events(response: Response) {
-  const out: AnalyseStreamEvent[] = [];
-  for await (const event of readAnalyseStream(response.body!)) out.push(event);
-  return out;
+  const text = await response.text();
+  expect(text.endsWith("\n")).toBe(true);
+  return text
+    .trimEnd()
+    .split("\n")
+    .map((line) => analyseStreamEventSchema.parse(JSON.parse(line)));
 }
 
 beforeEach(() => {

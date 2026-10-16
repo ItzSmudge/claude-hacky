@@ -20,7 +20,7 @@
 
 ## Tasks
 
-- [ ] **1. `analyse-batch.ts` (TDD).**
+- [x] **1. `analyse-batch.ts` (TDD).**
   - `analyseBatch({ projectId, paperIds, context, deps, signal })` is an async generator. It:
     - dedupes ids;
     - emits valid saved rows first;
@@ -36,21 +36,21 @@
     - an invalid saved row is re-analysed;
     - abort reports the remaining papers as busy.
   - Check: `pnpm test src/lib/ai`.
-- [ ] **2. `analyse-stream.ts` (TDD).**
+- [x] **2. ~~`analyse-stream.ts` (TDD).~~** Built, then dropped: SW-04 (#32) shipped its own reader in `src/components/swipe/analyse-stream.ts`.
   - `readAnalyseStream(body)` handles lines split across chunks and a trailing line with no newline. It skips blank and invalid lines, parsing each line with `analyseStreamEventSchema`.
   - Make sure `src/lib/ai/index.ts` (server-only) doesn't re-export it.
-- [ ] **3. Route `src/app/api/analyse/route.ts`.**
+- [x] **3. Route `src/app/api/analyse/route.ts`.**
   - Auth (401), then parse (400), then project lookup (404), with a context fallback when the project has no brief.
   - Supabase deps:
     - `paper_analyses` select and upsert, the upsert using `computeCredibility`;
     - `papers` select, with `data` parsed by `paperSchema`.
   - `ReadableStream` NDJSON with `Content-Type: application/x-ndjson`, `Cache-Control: no-store`, `maxDuration = 60`, and a 55 s `AbortSignal.any` deadline.
-  - Route test with `@/lib/supabase/server` and `@/lib/ai` mocked: 401, 400, 404, and a happy-path stream that parses with `readAnalyseStream`.
+  - Route test with `@/lib/supabase/server` and `@/lib/ai` mocked: 401, 400, 404, and a happy-path stream whose every line parses with `analyseStreamEventSchema`.
 - [ ] **4. Manual check (needs `pnpm db:start` + `ANTHROPIC_API_KEY`).**
   - Sign in as the demo user and POST 3 fixture paper ids for the demo project.
   - Expect 3 analysis events, then `done`, and rows in `paper_analyses`.
   - A second POST should be instant (served from the cache).
   - Without a key, expect "AI isn't configured" error events.
-- [ ] **5. Review + ship.**
+- [x] **5. Review + ship.**
   - `pr-reviewer`, then `pnpm check && pnpm build`.
   - `/ship-pr` into `dev`, ticking AI-04.

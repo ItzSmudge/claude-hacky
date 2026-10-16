@@ -54,7 +54,7 @@ The stream events are:
   - `deps = { loadExisting, loadPapers, analyse, save }`. Concurrency, ordering and error mapping live here.
   - Unit-tested with fakes: cached rows first, a missing paper, an error that doesn't stop the others, a save failure, `done` last, at most 5 in flight.
 - `src/app/api/analyse/route.ts`: auth, parse, project lookup, Supabase-backed deps, and an NDJSON `ReadableStream`. Covered by a route test with the Supabase and `analysePaper` modules mocked: 401, 400, 404, and the happy-path stream.
-- `src/lib/ai/analyse-stream.ts` (client-safe, no `server-only`): `readAnalyseStream(body)` yields events parsed with `analyseStreamEventSchema` and skips bad lines. It's for SW-04 to consume.
+- Client side: SW-04 (#32) already reads the stream with `src/components/swipe/analyse-stream.ts`, so no client reader ships here.
 
 ## Edge cases
 
