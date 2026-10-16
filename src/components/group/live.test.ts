@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { feedText, presenceText, teammateSave } from "./live";
+import { feedSummary, feedText, presenceText, teammateSave } from "./live";
 
 describe("presenceText", () => {
   it("says nothing when you're alone", () => {
@@ -57,5 +57,28 @@ describe("feedText", () => {
 
   it("falls back when the title is unknown", () => {
     expect(feedText("Member 2", undefined)).toBe("Member 2 saved a paper");
+  });
+});
+
+describe("feedSummary", () => {
+  const item = (userId: string, label: string, title?: string) => ({ userId, label, title });
+
+  it("is the single save's line for one item", () => {
+    expect(feedSummary([item("a", "Priya", "Title")])).toBe("Priya saved “Title”");
+  });
+
+  it("counts papers for one person", () => {
+    expect(feedSummary([item("a", "Priya"), item("a", "Priya"), item("a", "Priya")])).toBe(
+      "Priya saved 3 papers",
+    );
+  });
+
+  it("names the first person and counts the others", () => {
+    expect(feedSummary([item("a", "Priya"), item("b", "Member 3"), item("a", "Priya")])).toBe(
+      "Priya and 1 other saved 3 papers",
+    );
+    expect(feedSummary([item("a", "Priya"), item("b", "Member 3"), item("c", "Member 4")])).toBe(
+      "Priya and 2 others saved 3 papers",
+    );
   });
 });

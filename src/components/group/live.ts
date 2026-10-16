@@ -45,3 +45,19 @@ export function feedText(label: string, title: string | undefined): string {
   }
   return `${label} saved “${short}”`;
 }
+
+export interface FeedItem {
+  userId: string;
+  label: string;
+  title: string | undefined;
+}
+
+/** One line for a batch of teammates' saves: the single save, "Priya saved 3 papers", or "Priya and 2 others saved 5 papers". */
+export function feedSummary(items: readonly FeedItem[]): string {
+  if (items.length === 1) return feedText(items[0].label, items[0].title);
+  const people = [...new Map(items.map((i) => [i.userId, i.label])).values()];
+  const papers = `${items.length} papers`;
+  if (people.length === 1) return `${people[0]} saved ${papers}`;
+  const others = people.length - 1;
+  return `${people[0]} and ${others} ${others === 1 ? "other" : "others"} saved ${papers}`;
+}

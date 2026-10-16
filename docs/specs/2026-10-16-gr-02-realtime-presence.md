@@ -20,7 +20,8 @@
 ## Edge cases
 
 - Realtime down or blocked: no pill and no toasts; everything else works.
-- Undo (DELETE) isn't in the feed. The group page catches up on the next vote or reload.
+- Undo (DELETE) isn't in the feed or the live refresh: Supabase can't filter or RLS-check deletes, so subscribing would leak other projects' keys. The group page catches up on the next vote or reload.
+- Saves are throttled: the first shows at once, then at most one summary every 5 s ("Priya and 2 others saved 5 papers").
 - Long titles are cut on a word boundary.
 
 ## Out of scope

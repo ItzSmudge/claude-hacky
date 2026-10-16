@@ -3,9 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { cn } from "@/lib/utils";
-import { feedText, presenceText, teammateSave } from "./live";
+import { feedSummary, presenceText, teammateSave, type FeedItem } from "./live";
 
 /**
  * GR-02 on the deck: "3 swiping" while teammates have this project's deck open (Realtime
@@ -33,7 +33,32 @@ export function LivePresence({
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
     const titles = new Map<string, string>();
+    // Unknown presence keys we've already refreshed for: at most one refresh each.
+    const asked = new Set<string>();
     let cancelled = false;
+    let channel: RealtimeChannel | undefined;
+
+    // Leading + trailing throttle: the first save shows at once, then at most one summary per
+    // FEED_MS, so a busy group doesn't flood the toast (and screen readers) with updates.
+    let buffer: FeedItem[] = [];
+    let cooldown: ReturnType<typeof setTimeout> | undefined;
+    const show = (items: FeedItem[]) =>
+      toast(feedSummary(items), { id: `group-feed-${projectId}` });
+    const flush = () => {
+      cooldown = undefined;
+      if (cancelled || buffer.length === 0) return;
+      show(buffer);
+      buffer = [];
+      cooldown = setTimeout(flush, FEED_MS);
+    };
+    const push = (item: FeedItem) => {
+      if (cooldown) {
+        buffer.push(item);
+        return;
+      }
+      show([item]);
+      cooldown = setTimeout(flush, FEED_MS);
+    };
 
     async function announce(row: unknown) {
       const save = teammateSave(row, me);
@@ -49,63 +74,75 @@ export function LivePresence({
         if (title) titles.set(save.paperId, title);
       }
       if (cancelled) return;
-      const who = names.current.get(save.userId) ?? "A teammate";
-      // One toast, updated in place, so a busy group doesn't stack them up.
-      toast(feedText(who, title), { id: `group-feed-${projectId}` });
+      push({
+        userId: save.userId,
+        label: names.current.get(save.userId) ?? "A teammate",
+        title,
+      });
     }
 
-    const filter = `project_id=eq.${projectId}`;
-    const channel = supabase
-      .channel(`project:${projectId}`, { config: { presence: { key: me } } })
-      .on("presence", { event: "sync" }, () => {
-        if (cancelled) return;
-        const now = Object.keys(channel.presenceState());
-        setKeys(now);
-        // Someone new just joined the project: re-read members so the feed can name them.
-        if (now.some((key) => !names.current.has(key))) router.refresh();
-      })
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "swipes", filter },
-        (p) => void announce(p.new),
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "swipes", filter },
-        (p) => void announce(p.new),
-      );
-    void authoriseRealtime().then(() => {
+    void (async () => {
+      await authoriseRealtime();
+      // A channel with this topic may still be leaving (fast remount): channel() would hand it
+      // back and subscribe() would do nothing, so wait for it to go first.
+      const stale = supabase.getChannels().find((c) => c.topic === `realtime:project:${projectId}`);
+      if (stale) await supabase.removeChannel(stale);
       if (cancelled) return;
-      channel.subscribe((status) => {
-        if (status === "SUBSCRIBED") void channel.track({ at: new Date().toISOString() });
+      const filter = `project_id=eq.${projectId}`;
+      const live = supabase
+        .channel(`project:${projectId}`, { config: { presence: { key: me } } })
+        .on("presence", { event: "sync" }, () => {
+          if (cancelled) return;
+          const now = Object.keys(live.presenceState());
+          setKeys(now);
+          // Someone new joined the project: re-read members once so the feed can name them.
+          const fresh = now.filter((key) => !names.current.has(key) && !asked.has(key));
+          if (fresh.length) {
+            fresh.forEach((key) => asked.add(key));
+            router.refresh();
+          }
+        })
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "swipes", filter },
+          (p) => void announce(p.new),
+        )
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "swipes", filter },
+          (p) => void announce(p.new),
+        );
+      channel = live;
+      live.subscribe((status) => {
+        if (status === "SUBSCRIBED") void live.track({ at: new Date().toISOString() });
       });
-    });
+    })();
 
     return () => {
       cancelled = true;
-      void supabase.removeChannel(channel);
+      clearTimeout(cooldown);
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [projectId, me, router]);
 
-  const text = presenceText(keys, me);
+  // Only members count: a stray or departed key on the channel isn't "swiping" here.
+  const members = new Set(labels.map(([id]) => id));
+  const text = presenceText(
+    keys.filter((key) => members.has(key)),
+    me,
+  );
+  // Plain text, not a live region: who's around is ambient, and sockets on phones come and go.
+  if (!text) return null;
   return (
-    <p
-      role="status"
-      className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 rounded-full text-sm font-medium",
-        text && "border border-border bg-card px-3 py-1.5 text-card-foreground",
-      )}
-    >
-      {text && (
-        <>
-          <span aria-hidden className="size-2 rounded-full bg-supports motion-safe:animate-pulse" />
-          <span aria-hidden>{text.short}</span>
-          <span className="sr-only">{text.long}</span>
-        </>
-      )}
+    <p className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-sm font-medium text-card-foreground">
+      <span aria-hidden className="size-2 rounded-full bg-supports motion-safe:animate-pulse" />
+      <span aria-hidden>{text.short}</span>
+      <span className="sr-only">{text.long}</span>
     </p>
   );
 }
+
+const FEED_MS = 5000;
 
 /**
  * The cookie-based browser client can open the Realtime socket before it has handed over the
