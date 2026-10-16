@@ -270,6 +270,7 @@ describe("analyseBatch", () => {
     const done = collect(
       analyseBatch({
         projectId,
+        claimIds,
         paperIds: ids,
         deps: d,
         concurrency: 2,
