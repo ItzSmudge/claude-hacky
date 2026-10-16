@@ -1,0 +1,52 @@
+{
+  "projectId": "00000000-0000-4000-8000-000000000001",
+  "paperCount": 5,
+  "claims": [
+    {
+      "claimId": "c1",
+      "supports": ["openalex-W2908500884"],
+      "challenges": ["openalex-W3110709293", "openalex-W3195706482"]
+    },
+    {
+      "claimId": "c2",
+      "supports": [
+        "openalex-W3110709293",
+        "openalex-W2908500884",
+        "openalex-W4393176161",
+        "openalex-W4412412329"
+      ],
+      "challenges": []
+    },
+    { "claimId": "c3", "supports": ["openalex-W4412412329"], "challenges": [] }
+  ],
+  "methods": [
+    {
+      "label": "Umbrella reviews of reviews",
+      "paperIds": ["openalex-W3195706482", "openalex-W4393176161"]
+    },
+    {
+      "label": "Large adolescent survey samples",
+      "paperIds": ["openalex-W3110709293", "openalex-W2908500884"]
+    }
+  ],
+  "pairs": [
+    {
+      "a": "openalex-W3110709293",
+      "b": "openalex-W2908500884",
+      "kind": "contrast",
+      "note": "The first finds problematic use, not amount, predicts symptoms; the second links heavier use itself to more depressive symptoms."
+    },
+    {
+      "a": "openalex-W3195706482",
+      "b": "openalex-W4393176161",
+      "kind": "complement",
+      "note": "Both review reviews; the second adds quality ratings and weighs opportunities as well as risks over a later period."
+    },
+    {
+      "a": "openalex-W3110709293",
+      "b": "openalex-W4412412329",
+      "kind": "complement",
+      "note": "The first shows problematic use drives harm; the second reviews interventions that teach healthy-use skills to address it."
+    }
+  ]
+}
