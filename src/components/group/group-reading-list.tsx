@@ -158,16 +158,23 @@ export function GroupReadingList({
 
           <div className="flex flex-col gap-2">
             <p className="text-sm font-medium">
-              {split ? (
-                <>
-                  <RollingText value={paper.saves} /> saved · <RollingText value={paper.skips} />{" "}
-                  skipped
-                </>
-              ) : (
-                <>
-                  Saved by <RollingText value={paper.saves} /> of {memberCount}
-                </>
-              )}
+              <span className="sr-only">
+                {split
+                  ? `${paper.saves} saved · ${paper.skips} skipped`
+                  : `Saved by ${paper.saves} of ${memberCount}`}
+              </span>
+              <span aria-hidden>
+                {split ? (
+                  <>
+                    <RollingText value={paper.saves} /> saved · <RollingText value={paper.skips} />{" "}
+                    skipped
+                  </>
+                ) : (
+                  <>
+                    Saved by <RollingText value={paper.saves} /> of {memberCount}
+                  </>
+                )}
+              </span>
             </p>
             {!split && (
               <div

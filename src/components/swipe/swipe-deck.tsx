@@ -143,11 +143,12 @@ export function SwipeDeck({
   const rotate = useTransform(x, [-200, 200], [-12, 12]);
   const saveStamp = useTransform(x, [40, 120], [0, 1]);
   const skipStamp = useTransform(x, [-120, -40], [1, 0]);
-  // Stamps slam down (shrink to size as they appear); the card takes a faint wash of the same ink.
+  // Stamps slam down (shrink to size as they appear); the card takes a faint wash of the same ink,
+  // starting with the stamp so colour is never the only cue.
   const saveStampScale = useTransform(x, [40, 120], [1.5, 1]);
   const skipStampScale = useTransform(x, [-120, -40], [1, 1.5]);
-  const saveTint = useTransform(x, [0, 160], [0, 1]);
-  const skipTint = useTransform(x, [-160, 0], [1, 0]);
+  const saveTint = useTransform(x, [40, 160], [0, 1]);
+  const skipTint = useTransform(x, [-160, -40], [1, 0]);
   const dragControls = useDragControls();
 
   const cardRef = useRef<HTMLDivElement>(null);
@@ -477,7 +478,8 @@ export function SwipeDeck({
               animate={{
                 scale: 1 - 0.04 * depth,
                 y: 8 * depth,
-                rotate: reduceMotion ? 0 : depth % 2 ? 1.5 : -1,
+                // Static, so not gated on reduced motion (which would differ server vs client).
+                rotate: depth % 2 ? 1.5 : -1,
               }}
               transition={reduceMotion ? { duration: 0 } : SPRING}
               className="pointer-events-none origin-top"

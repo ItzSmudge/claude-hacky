@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { Suspense } from "react";
+import { Suspense, ViewTransition } from "react";
 import { z } from "zod";
 import { GroupReadingList } from "@/components/group/group-reading-list";
 import { memberLabels } from "@/components/group/group-list";
@@ -15,11 +15,15 @@ export const metadata: Metadata = { title: "Group reading list" };
 // Owner: group (GR-03). Every member's saves in one list, with the papers the group disagrees on.
 export default function GroupPage({ params }: PageProps<"/app/p/[projectId]/group">) {
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
-      <Suspense fallback={<GroupSkeleton />}>
-        <Group params={params} />
-      </Suspense>
-    </div>
+    // Tab switches crossfade (this page enters, the last one exits); router.refresh() and
+    // Suspense reveals update in place with no fade (default="none").
+    <ViewTransition enter="auto" exit="auto" default="none">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+        <Suspense fallback={<GroupSkeleton />}>
+          <Group params={params} />
+        </Suspense>
+      </div>
+    </ViewTransition>
   );
 }
 

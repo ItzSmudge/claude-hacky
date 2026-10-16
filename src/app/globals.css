@@ -316,6 +316,8 @@ html.text-large {
     animation-duration: 0.01ms !important;
     /* Infinite loops (skeleton pulse, spinners) would otherwise restart every 0.01ms: flicker. */
     animation-iteration-count: 1 !important;
+    /* Delayed entrances (fill: both) would otherwise sit hidden/empty for the delay, then snap. */
+    animation-delay: 0s !important;
     transition-duration: 0.01ms !important;
   }
 }
@@ -331,11 +333,14 @@ html.text-large {
   &:focus-within {
     box-shadow: var(--shadow-paper-lg);
   }
-  @media (hover: hover) {
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
     &:hover {
       translate: 0 -3px;
       box-shadow: var(--shadow-paper-lg);
       border-color: color-mix(in oklch, var(--primary) 35%, var(--border));
+    }
+    &:is(.hc *):hover {
+      border-color: var(--border);
     }
   }
 }
@@ -382,8 +387,12 @@ html.text-large {
     @supports (animation-timeline: view()) {
       animation: reveal linear both;
       animation-timeline: view();
-      /* --i staggers siblings in a row: each starts a little later in the scroll. */
-      animation-range: entry calc(var(--i, 0) * 6%) entry calc(55% + var(--i, 0) * 6%);
+      /* Short range, so text is never left half-faded when scrolling stops. */
+      animation-range: entry 0% entry 35%;
+      /* --i staggers siblings across a row; single-column phones get no stagger. */
+      @media (width >= 40rem) {
+        animation-range: entry calc(var(--i, 0) * 5%) entry calc(35% + var(--i, 0) * 5%);
+      }
     }
   }
 }
