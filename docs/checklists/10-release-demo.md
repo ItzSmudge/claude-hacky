@@ -7,7 +7,7 @@
 
 - [~] RD-01 `dev → main` release PRs at milestones (P0 done, P1 done, final)
 - [x] RD-02 Seed a polished demo project (real brief + query) on prod
-- [ ] RD-03 Demo script (2 min): problem → upload brief → swipe 5 → group joins from phone → disagreement → export LaTeX
+- [~] @Claude docs/release-demo-script RD-03 Demo script (2 min): problem → upload brief → swipe 5 → group joins from phone → disagreement → export LaTeX
 - [ ] RD-04 Stretch P2: lit-review scaffold (outline with `\cite` keys validated against library)
 - [ ] RD-05 README, screenshots, submission form
 
