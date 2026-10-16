@@ -40,6 +40,8 @@ export function createSwipeSync({
   retryDelaysMs?: number[];
 }) {
   const slots = new Map<string, Slot>();
+  // Resolved when nothing is in flight or waiting (Start over waits on this before deleting).
+  let idleWaiters: (() => void)[] = [];
 
   async function attempt(op: SwipeOp): Promise<SendResult> {
     try {
@@ -78,6 +80,11 @@ export function createSwipeSync({
       }
     }
     slots.delete(paperId);
+    if (slots.size === 0) {
+      const waiters = idleWaiters;
+      idleWaiters = [];
+      waiters.forEach((resolve) => resolve());
+    }
   }
 
   return {
@@ -94,5 +101,8 @@ export function createSwipeSync({
     },
     /** Papers with a write in flight or waiting. */
     pending: () => slots.size,
+    /** Resolves once every queued write (including retries) has finished. */
+    idle: (): Promise<void> =>
+      slots.size === 0 ? Promise.resolve() : new Promise((resolve) => idleWaiters.push(resolve)),
   };
 }

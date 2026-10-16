@@ -57,14 +57,27 @@ export async function POST(request: Request, ctx: Ctx) {
   return new NextResponse(null, { status: 204 });
 }
 
-/** Undo: removes the caller's swipe. Deleting nothing is still a success. */
+/**
+ * Undo: removes the caller's swipe on `?paperId=…`. Start over: `?all=true` removes all of the
+ * caller's swipes in this project (never teammates'; RLS only lets you delete your own).
+ * Deleting nothing is still a success.
+ */
 export async function DELETE(request: Request, ctx: Ctx) {
   const auth = await authorise(ctx);
   if ("response" in auth) return auth.response;
+  const params = new URL(request.url).searchParams;
 
-  const query = deleteQuerySchema.safeParse({
-    paperId: new URL(request.url).searchParams.get("paperId") ?? undefined,
-  });
+  if (params.get("all") === "true") {
+    const { error: err } = await auth.supabase
+      .from("swipes")
+      .delete()
+      .eq("project_id", auth.projectId)
+      .eq("user_id", auth.userId);
+    if (err) return dbError("delete all", err);
+    return new NextResponse(null, { status: 204 });
+  }
+
+  const query = deleteQuerySchema.safeParse({ paperId: params.get("paperId") ?? undefined });
   if (!query.success) return error(400, "Invalid paper id", z.treeifyError(query.error));
 
   const { error: err } = await auth.supabase

@@ -9,6 +9,16 @@ import { speak, stop as stopSpeaking } from "@/components/a11y/read-aloud";
 import { cardScript } from "@/components/a11y/speech";
 import type { VoiceCommand } from "@/components/a11y/voice";
 import { VoiceControl } from "@/components/a11y/voice-control";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { DetailSheet } from "./detail-sheet";
 import { SwipeDeck, type DeckItem, type SwipeDeckHandle } from "./swipe-deck";
 import { classifyStatus, createSwipeSync, type SendResult, type SwipeOp } from "./swipe-sync";
@@ -86,10 +96,21 @@ function createPersistence(projectId: string, titleOf: (paperId: string) => stri
     },
   });
 
-  return (op: SwipeOp) => {
-    latest.set(op.paperId, op);
-    toast.dismiss(toastId(op.paperId));
-    queue.enqueue(op);
+  return {
+    push(op: SwipeOp) {
+      latest.set(op.paperId, op);
+      toast.dismiss(toastId(op.paperId));
+      queue.enqueue(op);
+    },
+    /**
+     * Before Start over: wait for writes still in flight (a late save would otherwise land after
+     * the delete and bring that paper back), then make old failure toasts' Retry do nothing.
+     */
+    async settle(timeoutMs = 5000) {
+      await Promise.race([queue.idle(), new Promise((r) => setTimeout(r, timeoutMs))]);
+      for (const paperId of latest.keys()) toast.dismiss(toastId(paperId));
+      latest.clear();
+    },
   };
 }
 
@@ -146,7 +167,7 @@ export function PersistedSwipeDeck({
   const persist = useRef<ReturnType<typeof createPersistence> | null>(null);
   const enqueue = (op: SwipeOp) => {
     persist.current ??= createPersistence(projectId, (id) => titles.current.get(id));
-    persist.current(op);
+    persist.current.push(op);
   };
 
   const featureIds = useMemo(
@@ -179,6 +200,25 @@ export function PersistedSwipeDeck({
   }, [items, featureIds, decisions, initialHistory]);
 
   const deck = useRef<SwipeDeckHandle>(null);
+  // Start over: only offered once you've swiped here (this visit or before).
+  const hasSwiped = swipedIds.length > 0 || decisions.length > 0;
+  const [confirmStartOver, setConfirmStartOver] = useState(false);
+  const [startingOver, setStartingOver] = useState(false);
+
+  async function startOver() {
+    if (startingOver) return;
+    setStartingOver(true);
+    try {
+      await persist.current?.settle();
+      const res = await fetch(`/api/projects/${projectId}/swipes?all=true`, { method: "DELETE" });
+      if (!res.ok) throw new Error(String(res.status));
+      // A fresh load rebuilds the queue, ranking and history from nothing.
+      window.location.reload();
+    } catch {
+      setStartingOver(false);
+      toast.error("Couldn't start over. Try again.");
+    }
+  }
   // Item stays set while the sheet animates closed.
   const [details, setDetails] = useState<{ item: DeckItem; open: boolean } | null>(null);
 
@@ -228,6 +268,7 @@ export function PersistedSwipeDeck({
         libraryHref={libraryHref}
         loading={queue.loading}
         onLoadMore={queue.hasMore || queue.searchError ? queue.loadMore : undefined}
+        onStartOver={hasSwiped ? () => setConfirmStartOver(true) : undefined}
         // Ranking history first: a failing save must not leave it out of step with the deck.
         onDecide={(paperId, decision) => {
           setDecisions((d) => [...d, { paperId, decision }]);
@@ -242,6 +283,40 @@ export function PersistedSwipeDeck({
           if (item) setDetails({ item, open: true });
         }}
       />
+      <Dialog
+        open={confirmStartOver}
+        onOpenChange={(open) => !startingOver && setConfirmStartOver(open)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Start this deck over?</DialogTitle>
+            <DialogDescription>
+              Your saves and skips in this project are cleared, so your library here will be empty.
+              Teammates&apos; votes stay as they are.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                className="min-h-11 aria-disabled:opacity-70"
+                aria-disabled={startingOver || undefined}
+              >
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button
+              type="button"
+              className="min-h-11 aria-disabled:opacity-70"
+              aria-disabled={startingOver || undefined}
+              onClick={() => void startOver()}
+            >
+              {startingOver ? "Starting over…" : "Start over"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <DetailSheet
         item={details?.item ?? null}
         claims={claims}
