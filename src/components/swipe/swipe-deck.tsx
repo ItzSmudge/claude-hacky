@@ -13,6 +13,7 @@ import Link from "next/link";
 import {
   useEffect,
   useEffectEvent,
+  useId,
   useImperativeHandle,
   useLayoutEffect,
   useReducer,
@@ -22,6 +23,15 @@ import {
   type PointerEvent as ReactPointerEvent,
   type Ref,
 } from "react";
+import {
+  arrivalMessage,
+  decisionMessage,
+  nothingLeftMessage,
+  spokenTitle,
+  undoMessage,
+} from "@/components/a11y/deck-announcements";
+import { DeckInstructions } from "@/components/a11y/deck-instructions";
+import { LiveAnnouncer, useAnnouncer } from "@/components/a11y/live-announcer";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type {
@@ -146,7 +156,14 @@ export function SwipeDeck({
   const emptyFired = useRef(false);
 
   const [flash, setFlash] = useState<SwipeDecision | null>(null);
-  const [announcement, setAnnouncement] = useState("");
+  const { message: announcement, announce } = useAnnouncer();
+  const instructionsId = useId();
+  // AX-01: what the user just did, spoken once the deck has settled on its new top card.
+  const pending = useRef<
+    | { kind: "decide"; decision: SwipeDecision; title: string }
+    | { kind: "undo"; title: string }
+    | null
+  >(null);
 
   const top = current(deck);
   const topId = top?.paper.id ?? null;
@@ -197,6 +214,27 @@ export function SwipeDeck({
     }
   }, [left]);
 
+  // Runs after the parent re-ranks, so "Next:" names the card that is really on top.
+  const announced = useRef({ topId, loading });
+  const announceChange = useEffectEvent(() => {
+    const was = announced.current;
+    announced.current = { topId, loading };
+    const done = pending.current;
+    pending.current = null;
+    if (done?.kind === "decide") {
+      announce(
+        decisionMessage({ ...done, next: top?.paper.title ?? null, left, loading: loading }),
+      );
+    } else if (done?.kind === "undo") {
+      announce(undoMessage({ title: done.title, left }));
+    } else if (top && was.topId === null) {
+      announce(arrivalMessage({ title: top.paper.title, first: deck.cursor === 0 }));
+    } else if (!top && was.loading && !loading) {
+      announce(nothingLeftMessage(total));
+    }
+  });
+  useEffect(() => announceChange(), [topId, left, loading]);
+
   const canCommit = () => top !== null && !busy.current && !dragging.current;
 
   async function commit(decision: SwipeDecision, velocity = 0, focusDeck = false) {
@@ -231,9 +269,7 @@ export function SwipeDeck({
     // The card may have been removed from `items` mid-animation: then nothing was decided.
     if (current(deckRef.current)?.paper.id !== paper.id) return;
     dispatch({ type: "decide", paperId: paper.id, decision });
-    setAnnouncement(
-      `${decision === "save" ? "Saved" : "Skipped"}: ${paper.title}. ${left - 1} left.`,
-    );
+    pending.current = { kind: "decide", decision, title: paper.title };
     if (moveFocus) regionRef.current?.focus();
     safely(onDecide, paper.id, decision);
   }
@@ -265,7 +301,7 @@ export function SwipeDeck({
       regionRef.current?.focus();
     }
     dispatch({ type: "undo" });
-    setAnnouncement(`Restored: ${deck.known[last.paperId]?.paper.title ?? "paper"}.`);
+    pending.current = { kind: "undo", title: deck.known[last.paperId]?.paper.title ?? "" };
     if (!reduceMotion) haptic();
     safely(onUndo, last.paperId, last.decision);
   }
@@ -354,9 +390,10 @@ export function SwipeDeck({
         ref={regionRef}
         role="group"
         tabIndex={-1}
+        aria-describedby={top ? instructionsId : undefined}
         aria-label={
           top
-            ? `Paper ${deck.cursor + 1} of ${total}`
+            ? `Paper ${deck.cursor + 1} of ${total}: ${spokenTitle(top.paper.title)}`
             : loading
               ? "Loading papers"
               : "No papers left"
@@ -467,9 +504,8 @@ export function SwipeDeck({
         />
       </div>
 
-      <p aria-live="polite" className="sr-only">
-        {announcement}
-      </p>
+      <DeckInstructions id={instructionsId} details={Boolean(onDetails)} />
+      <LiveAnnouncer message={announcement} />
     </section>
   );
 }

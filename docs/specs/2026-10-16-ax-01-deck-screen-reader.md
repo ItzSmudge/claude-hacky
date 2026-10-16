@@ -12,7 +12,7 @@
 ## Gaps found reading `swipe-deck.tsx`
 
 1. **The new top card is never named.** After a save, focus lands on a group labelled "Paper 3 of 10", so the user hears a number, not the paper. They have to tab into the card to find out what it is.
-2. **Repeated messages are dropped.** Live regions only speak when the text changes, so Skip → Undo → Skip on the same paper says nothing the second time.
+2. **Repeated messages are dropped.** Live regions only speak when the text changes, so the same message twice in a row (e.g. "No more papers found." after a second failed Load more) is silent.
 3. **Silent state changes.** Nothing announces papers finishing loading, the deck running out, "Load more" adding papers, or how many are left after an undo.
 4. **Shortcuts aren't discoverable by screen-reader users.** The `<kbd>` hints are `aria-hidden` and hidden on phones; nothing describes the deck's controls.
 
