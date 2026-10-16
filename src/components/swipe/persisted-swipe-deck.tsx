@@ -12,6 +12,7 @@ import { usePaperQueue } from "./use-paper-queue";
 
 const TITLE_MAX = 60;
 const NO_HISTORY: SwipeSample[] = [];
+const NO_ITEMS: DeckItem[] = [];
 /** Top so a toast never covers the deck controls on a phone. */
 const TOAST_POSITION = "top-center";
 /** sonner's buttons are 24px tall; inline style beats its stylesheet. */
@@ -126,7 +127,10 @@ export function PersistedSwipeDeck({
 
   // SW-04: fetch papers and analyse the next few before the user reaches them.
   const queue = usePaperQueue({ projectId, query, swipedIds, decidedIds });
-  const items = queue.analyseUnavailable ? (fallbackItems ?? []) : queue.items;
+  const items = useMemo(
+    () => (queue.analyseUnavailable ? (fallbackItems ?? NO_ITEMS) : queue.items),
+    [queue.analyseUnavailable, fallbackItems, queue.items],
+  );
 
   // Titles for failure toasts; kept for papers that later leave `items`.
   const titles = useRef(new Map<string, string>());

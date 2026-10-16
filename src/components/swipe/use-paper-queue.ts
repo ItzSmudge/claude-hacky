@@ -40,7 +40,12 @@ export function usePaperQueue({
   useEffect(() => {
     const controller = new AbortController();
     abort.current = controller;
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      // The aborted fetch's `finally` runs later; without this, a remount (React dev runs
+      // effects twice) finds the guard still set, skips its search and the deck stays empty.
+      fetchingPage.current = false;
+    };
   }, []);
 
   const loadMore = useCallback(async () => {
