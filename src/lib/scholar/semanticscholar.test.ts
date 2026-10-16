@@ -171,6 +171,21 @@ describe("searchSemanticScholar", () => {
     expect(res.nextPage).toBeNull();
   });
 
+  it("shrinks the last page so offset + limit stays within 1,000", async () => {
+    const fetch = vi.fn(async () => body([], 5000));
+    const res = await searchSemanticScholar({ q: "x", page: 34, perPage: 30 }, { fetch, sleep });
+    expect(urlOf(fetch).searchParams.get("offset")).toBe("990");
+    expect(urlOf(fetch).searchParams.get("limit")).toBe("10");
+    expect(res.nextPage).toBeNull();
+  });
+
+  it("returns an empty page past the 1,000-result window without calling S2", async () => {
+    const fetch = vi.fn(async () => body([], 5000));
+    const res = await searchSemanticScholar({ q: "x", page: 60, perPage: 20 }, { fetch, sleep });
+    expect(res).toEqual({ papers: [], total: 0, nextPage: null });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("clamps perPage to 100", async () => {
     const fetch = vi.fn(async () => body([]));
     await searchSemanticScholar({ q: "x", perPage: 500 }, { fetch, sleep });
@@ -230,7 +245,11 @@ describe("searchSemanticScholar", () => {
     expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([500, 1500]);
   });
 
-  it.each([400, 403])("does not retry a %i and keeps the key out of the error", async (code) => {
+  it.each([
+    [400, 2],
+    [403, 1],
+  ])("does not back off on a %i and keeps the key out of the error", async (code, calls) => {
+    sleep.mockClear();
     const fetch = vi.fn(async () => status(code));
     const err = (await searchSemanticScholar(
       { q: "x" },
@@ -238,7 +257,21 @@ describe("searchSemanticScholar", () => {
     ).catch((e: unknown) => e)) as SemanticScholarError;
     expect(err).toMatchObject({ status: code, retryable: false });
     expect(err.message).not.toContain("secret-key");
-    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledTimes(calls);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it("retries a 400 once without tldr, in case search rejects that field", async () => {
+    sleep.mockClear();
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(status(400))
+      .mockResolvedValueOnce(body([papers.real!]));
+    const res = await searchSemanticScholar({ q: "x" }, { fetch, sleep });
+    expect(res.papers).toHaveLength(1);
+    expect(urlOf(fetch, 0).searchParams.get("fields")).toContain("tldr");
+    expect(urlOf(fetch, 1).searchParams.get("fields")).toBe(FIELDS.replace(",tldr", ""));
+    expect(sleep).not.toHaveBeenCalled();
   });
 
   it("throws a 502 on a malformed body", async () => {

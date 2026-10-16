@@ -187,10 +187,13 @@ export async function searchSemanticScholar(
   if (!query) throw new SemanticScholarError("Search query is empty", 400, false);
   const page = Math.max(1, Math.trunc(params.page ?? 1));
   const perPage = Math.min(MAX_PER_PAGE, Math.max(1, Math.trunc(params.perPage ?? 20)));
+  const offset = (page - 1) * perPage;
+  // Nothing past the window can be fetched; S2 would answer 400. The true total is unknown here.
+  if (offset >= MAX_RESULTS) return { papers: [], total: 0, nextPage: null };
   const url = new URL(API);
   url.searchParams.set("query", query);
-  url.searchParams.set("offset", String((page - 1) * perPage));
-  url.searchParams.set("limit", String(perPage));
+  url.searchParams.set("offset", String(offset));
+  url.searchParams.set("limit", String(Math.min(perPage, MAX_RESULTS - offset)));
   url.searchParams.set("fields", FIELDS);
   const years = yearRange(params.yearFrom, params.yearTo);
   if (years) url.searchParams.set("year", years);
@@ -199,12 +202,15 @@ export async function searchSemanticScholar(
 
   let last = new SemanticScholarError("Semantic Scholar request failed", 0, true);
   let retryAfter: number | undefined;
+  let droppedTldr = false;
+  let skipBackoff = false;
   for (let attempt = 0; attempt <= BACKOFF_MS.length; attempt++) {
     if (signal?.aborted) throw aborted();
-    if (attempt > 0) {
+    if (attempt > 0 && !skipBackoff) {
       await sleep(retryAfter ?? BACKOFF_MS[attempt - 1]!, signal);
       if (signal?.aborted) throw aborted();
     }
+    skipBackoff = false;
 
     let res: Response;
     try {
@@ -228,6 +234,15 @@ export async function searchSemanticScholar(
     }
     if (!res.ok) {
       await res.body?.cancel().catch(() => {});
+      // Unconfirmed whether /paper/search accepts `tldr` (SE-02 spec): rather than lose every
+      // search to a 400, ask once more without it. Doesn't count as a retry or wait.
+      if (res.status === 400 && !droppedTldr) {
+        droppedTldr = true;
+        url.searchParams.set("fields", FIELDS.replace(",tldr", ""));
+        skipBackoff = true;
+        attempt--;
+        continue;
+      }
       throw new SemanticScholarError(`Semantic Scholar responded ${res.status}`, res.status, false);
     }
 
