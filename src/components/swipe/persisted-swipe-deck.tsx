@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { SwipeRequest } from "@/lib/api-schemas";
 import {
@@ -9,6 +9,7 @@ import {
   extractFeatures,
   featurePhrase,
   findInsight,
+  keepHead,
   rankItems,
   templateSentence,
   type Insight,
@@ -42,9 +43,14 @@ import { DetailSheet } from "./detail-sheet";
 import { SwipeDeck, type DeckItem, type SwipeDeckHandle } from "./swipe-deck";
 import { classifyStatus, createSwipeSync, type SendResult, type SwipeOp } from "./swipe-sync";
 import { usePaperQueue } from "./use-paper-queue";
+import { useTeamHistories, type TeamSwipe } from "./use-team-histories";
 
 const TITLE_MAX = 60;
 const NO_HISTORY: SwipeSample[] = [];
+const NO_TEAM: TeamSwipe[] = [];
+const NO_FEATURES: Record<string, string[]> = {};
+/** RK-04: cards a teammate's swipe never moves — the one on screen and the one under it. */
+const PINNED_CARDS = 2;
 const NO_ITEMS: DeckItem[] = [];
 /** Top so a toast never covers the deck controls on a phone. */
 const TOAST_POSITION = "top-center";
@@ -194,6 +200,9 @@ export function PersistedSwipeDeck({
   fallbackItems,
   libraryHref,
   initialHistory = NO_HISTORY,
+  userId,
+  initialTeam = NO_TEAM,
+  decidedFeatures = NO_FEATURES,
   now,
 }: {
   projectId: string;
@@ -205,6 +214,12 @@ export function PersistedSwipeDeck({
   now?: string;
   /** Swipes from earlier visits (oldest first), so the learnt order survives a reload (RK-02). */
   initialHistory?: SwipeSample[];
+  /** RK-04: the signed-in user, so their own Realtime swipes aren't counted as a teammate's. */
+  userId?: string;
+  /** RK-04: teammates' swipes here (oldest first); they rank this deck too, at half strength. */
+  initialTeam?: TeamSwipe[];
+  /** RK-04: feature ids of papers I decided earlier (no longer in the deck), by paper id. */
+  decidedFeatures?: Record<string, string[]>;
   claims: ProjectContext["claims"];
   /** Shown while /api/analyse isn't available yet (AI-04), so the demo deck never goes blank. */
   fallbackItems?: DeckItem[];
@@ -264,23 +279,50 @@ export function PersistedSwipeDeck({
     ],
     [initialHistory, decisions, featureIds],
   );
+  // RK-04: teammates' swipes, kept live, rank the deck too.
+  const teamFeaturesOf = useCallback(
+    (paperId: string) => featureIds.get(paperId) ?? decidedFeatures[paperId],
+    [featureIds, decidedFeatures],
+  );
+  const teamHistories = useTeamHistories({
+    projectId,
+    userId,
+    initialTeam,
+    featuresOf: teamFeaturesOf,
+  });
   // RK-03: filters applied from insight toasts sit on top of the learnt order.
   const filters = useDeckFilters(projectId);
   // A card brought back by Undo stays even if a filter would hide it, or Undo would seem to fail.
   const [undoneId, setUndoneId] = useState<string | null>(null);
-  const ranked = useMemo(() => {
+  // RK-04: when only a teammate's swipe changed the order, keep the top cards where they are.
+  // The last order lives in state (React's "previous render" pattern) so it can be compared.
+  const ownInputs = [items, featureIds, decisions, history, filters.active, undoneId];
+  const [lastRank, setLastRank] = useState<{
+    own: unknown[];
+    team: SwipeSample[][];
+    ranked: DeckItem[];
+  } | null>(null);
+  const ownSame = !!lastRank && lastRank.own.every((input, i) => input === ownInputs[i]);
+  let ranked: DeckItem[];
+  if (lastRank && ownSame && lastRank.team === teamHistories) {
+    ranked = lastRank.ranked;
+  } else {
     const decided = new Set(decisions.map((d) => d.paperId));
     const idsOf = (i: DeckItem) => featureIds.get(i.paper.id) ?? [];
-    return applyDeckFilters(
+    const next = applyDeckFilters(
       rankItems(
         items.filter((i) => !decided.has(i.paper.id)),
         idsOf,
         history,
+        { teamHistories },
       ),
       (i) => (i.paper.id === undoneId ? [] : idsOf(i)),
       toDeckFilters(filters.active),
     );
-  }, [items, featureIds, decisions, history, filters.active, undoneId]);
+    ranked =
+      lastRank && ownSame ? keepHead(lastRank.ranked, next, PINNED_CARDS, (i) => i.paper.id) : next;
+    setLastRank({ own: ownInputs, team: teamHistories, ranked });
+  }
 
   // RK-03: after enough swipes, offer one clear pattern as a toast with a one-tap filter.
   // Earlier visits' swipes count, but only a swipe this visit can bring up a toast.
