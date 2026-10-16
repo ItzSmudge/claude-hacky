@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RATES, cardScript, nextRate, rateLabel, toUtterances } from "./speech";
+import { RATES, cardScript, nextRate, rateLabel, toTtsText, toUtterances } from "./speech";
 
 describe("toUtterances", () => {
   it("splits into sentences and drops empty parts", () => {
@@ -54,5 +54,17 @@ describe("rates", () => {
   it("labels speeds for display", () => {
     expect(rateLabel(1)).toBe("1×");
     expect(rateLabel(0.75)).toBe("0.75×");
+  });
+});
+
+describe("toTtsText", () => {
+  it("joins the script into one normalised piece", () => {
+    expect(toTtsText(["T.", "Why it matters:  Because.", "", "It studied X."])).toBe(
+      "T. Why it matters: Because. It studied X.",
+    );
+  });
+
+  it("stops at the last whole sentence that fits", () => {
+    expect(toTtsText(["One two. Three four. Five six."], 20)).toBe("One two. Three four.");
   });
 });

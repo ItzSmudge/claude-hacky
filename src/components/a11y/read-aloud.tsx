@@ -2,8 +2,9 @@
 
 import { Square, Volume2 } from "lucide-react";
 import { useEffect, useId, useSyncExternalStore } from "react";
+import { clientEnv } from "@/lib/env";
 import { cn } from "@/lib/utils";
-import { RATES, nextRate, rateLabel, toUtterances, type Rate } from "./speech";
+import { RATES, nextRate, rateLabel, toTtsText, toUtterances, type Rate } from "./speech";
 
 // ── One shared player: only one Listen button speaks at a time, page-wide ─────────────────
 let speakingId: string | null = null;
@@ -34,13 +35,39 @@ function loadRate() {
 const synth = () =>
   typeof window !== "undefined" && "speechSynthesis" in window ? window.speechSynthesis : null;
 
-export function speak(id: string, parts: readonly string[]) {
+// ── ElevenLabs voice via /api/tts, when switched on. The device voice is the fallback. ─────
+let audio: HTMLAudioElement | null = null;
+// Set after a failure (no key, offline, quota) so later clicks don't wait on it again.
+let naturalVoiceFailed = false;
+const naturalVoice = () =>
+  clientEnv.NEXT_PUBLIC_FEATURE_ELEVENLABS && !naturalVoiceFailed && typeof Audio !== "undefined";
+
+function speakNatural(mine: number, parts: readonly string[], onFail: () => void) {
+  const text = toTtsText(parts);
+  if (!text) return stop();
+  const a = new Audio(`/api/tts?${new URLSearchParams({ text })}`);
+  audio = a;
+  a.playbackRate = rate;
+  a.onended = () => {
+    if (session === mine) stop();
+  };
+  const fail = () => {
+    if (session !== mine) return;
+    naturalVoiceFailed = true;
+    audio = null;
+    onFail();
+  };
+  a.onerror = fail;
+  // Started synchronously inside the click, which iOS Safari needs to allow playback.
+  a.play().catch((e: unknown) => {
+    // AbortError: stopped or restarted before it began, which is not a failure.
+    if (!(e instanceof DOMException && e.name === "AbortError")) fail();
+  });
+}
+
+function speakDevice(mine: number, parts: readonly string[]) {
   const s = synth();
-  if (!s) return;
-  s.cancel();
-  const mine = ++session;
-  speakingId = id;
-  emit();
+  if (!s) return stop();
   const chunks = toUtterances(parts);
   chunks.forEach((text, i) => {
     const u = new SpeechSynthesisUtterance(text);
@@ -60,8 +87,36 @@ export function speak(id: string, parts: readonly string[]) {
   });
 }
 
-export function stop() {
+function haltPlayback() {
   synth()?.cancel();
+  if (audio) {
+    audio.onended = audio.onerror = null;
+    audio.pause();
+    audio.removeAttribute("src");
+    audio.load();
+    audio = null;
+  }
+}
+
+export function speak(id: string, parts: readonly string[]) {
+  if (!naturalVoice() && !synth()) return;
+  haltPlayback();
+  const mine = ++session;
+  speakingId = id;
+  emit();
+  if (naturalVoice()) speakNatural(mine, parts, () => speakDevice(mine, parts));
+  else speakDevice(mine, parts);
+}
+
+/** Change speed now: the natural voice adjusts in place, the device voice restarts. */
+function applyRate(id: string, parts: readonly string[]) {
+  if (speakingId !== id) return;
+  if (audio) audio.playbackRate = rate;
+  else speak(id, parts);
+}
+
+export function stop() {
+  haltPlayback();
   if (speakingId !== null) {
     speakingId = null;
     emit();
@@ -72,8 +127,9 @@ const RING =
   "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-hidden hc:focus-visible:ring-4";
 
 /**
- * AX-02: Listen / Stop plus a speed button (0.75×–1.5×, remembered on this device). Hidden where
- * the browser has no speech synthesis. Stops when unmounted, e.g. when the card is swiped away.
+ * AX-02: Listen / Stop plus a speed button (0.75×–1.5×, remembered on this device). Uses the
+ * ElevenLabs voice when switched on, else the device voice; hidden when neither is available.
+ * Stops when unmounted, e.g. when the card is swiped away.
  */
 export function ReadAloud({
   parts,
@@ -91,7 +147,7 @@ export function ReadAloud({
   const id = useId();
   const supported = useSyncExternalStore(
     subscribe,
-    () => synth() !== null,
+    () => naturalVoice() || synth() !== null,
     () => false,
   );
   const speaking = useSyncExternalStore(
@@ -130,14 +186,14 @@ export function ReadAloud({
       // Not remembered this time; still applies now.
     }
     emit();
-    // Restart at the new speed so the change is heard straight away.
-    if (speakingId === id) speak(id, parts);
+    // Heard straight away, not from the next card.
+    applyRate(id, parts);
   }
 
   return (
     <div role="group" aria-label="Read aloud" className={cn("flex items-center gap-1", className)}>
       <span className="sr-only">
-        Uses your device&apos;s voice, which may overlap your screen reader.
+        Reads aloud through your speakers, which may overlap your screen reader.
       </span>
       <button
         type="button"
