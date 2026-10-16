@@ -39,7 +39,11 @@ export function DeckControls({
         disabled={disabled}
         aria-keyshortcuts="ArrowLeft"
       >
-        <X className="size-5 text-challenges" strokeWidth={1.75} aria-hidden />
+        <X
+          className="size-5 text-challenges transition-transform duration-200 ease-out motion-safe:group-hover/button:rotate-90"
+          strokeWidth={1.75}
+          aria-hidden
+        />
         Skip
         <Key>←</Key>
       </Button>
@@ -50,12 +54,20 @@ export function DeckControls({
         disabled={!canUndo}
         aria-keyshortcuts="Z"
       >
-        <Undo2 className="size-5" strokeWidth={1.75} aria-hidden />
+        <Undo2
+          className="size-5 transition-transform duration-200 ease-out motion-safe:group-hover/button:-rotate-45"
+          strokeWidth={1.75}
+          aria-hidden
+        />
         Undo
         <Key>Z</Key>
       </Button>
       <Button className={base} onClick={onSave} disabled={disabled} aria-keyshortcuts="ArrowRight">
-        <Bookmark className="size-5" strokeWidth={1.75} aria-hidden />
+        <Bookmark
+          className="size-5 transition-[fill,translate] duration-200 ease-out group-hover/button:fill-current motion-safe:group-hover/button:-translate-y-0.5"
+          strokeWidth={1.75}
+          aria-hidden
+        />
         Save
         <Key>→</Key>
       </Button>

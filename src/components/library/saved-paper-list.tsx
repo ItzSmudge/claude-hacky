@@ -1,6 +1,7 @@
 "use client";
 
 import { Swords, ThumbsUp } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -39,6 +40,7 @@ export function SavedPaperList({
   claims: ProjectContext["claims"];
 }) {
   const router = useRouter();
+  const reduceMotion = useReducedMotion() ?? false;
   const uid = useId();
   // Mirrors `pending` for toast actions, whose closures would otherwise see stale state.
   const inFlight = useRef(new Set<string>());
@@ -101,11 +103,19 @@ export function SavedPaperList({
     }
   }
 
-  const card = (item: LibraryItem, headingLevel: 3 | 4 = 3) => {
+  const card = (item: LibraryItem, index: number, headingLevel: 3 | 4 = 3) => {
     const id = item.paper.id;
     const isRemoved = removed.has(id);
     return (
-      <li key={id}>
+      // Cards deal in one after another (CSS, so they show even before hydration finishes) and
+      // the rest glide into place when a removed card shrinks or a restored one grows back.
+      <motion.li
+        key={id}
+        layout={reduceMotion ? false : "position"}
+        transition={{ type: "tween", duration: 0.25, ease: "easeOut" }}
+        className="animate-in duration-300 fill-mode-both fade-in slide-in-from-bottom-2"
+        style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
+      >
         <SavedPaperCard
           item={item}
           claims={claims}
@@ -114,7 +124,7 @@ export function SavedPaperList({
           headingLevel={headingLevel}
           onToggle={() => void send(item, isRemoved ? "save" : "skip")}
         />
-      </li>
+      </motion.li>
     );
   };
 
@@ -127,7 +137,9 @@ export function SavedPaperList({
           hint={USE_LABELS[key].hint}
           count={group.length}
         >
-          <ul className="flex flex-col gap-4">{group.map((i) => card(i))}</ul>
+          <ul role="list" className="flex flex-col gap-4">
+            {group.map((item, i) => card(item, i))}
+          </ul>
         </Section>
       ))}
     </div>
@@ -169,7 +181,7 @@ export function SavedPaperList({
                 tone="text-supports"
                 empty="No saved paper supports this yet."
               >
-                {supports.map((i) => card(i, 4))}
+                {supports.map((item, i) => card(item, i, 4))}
               </StanceGroup>
               <StanceGroup
                 icon={<Swords className="size-4" strokeWidth={1.75} aria-hidden />}
@@ -177,7 +189,7 @@ export function SavedPaperList({
                 tone="text-challenges"
                 empty="No saved paper challenges this yet."
               >
-                {challenges.map((i) => card(i, 4))}
+                {challenges.map((item, i) => card(item, i, 4))}
               </StanceGroup>
               {otherCount > 0 && (
                 <p className="text-sm text-muted-foreground">
@@ -239,7 +251,9 @@ function StanceGroup({
         {label} <span className="text-muted-foreground">({children.length})</span>
       </h3>
       {children.length ? (
-        <ul className="flex flex-col gap-4">{children}</ul>
+        <ul role="list" className="flex flex-col gap-4">
+          {children}
+        </ul>
       ) : (
         <p className="text-sm text-muted-foreground">{empty}</p>
       )}

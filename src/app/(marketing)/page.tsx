@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Logo } from "@/components/brand/logo";
 import { DemoCardStack, type DemoCard } from "@/components/marketing/demo-card-stack";
 import { formatMeta } from "@/components/swipe/card-format";
@@ -180,7 +180,7 @@ function SectionHeading({
   children: ReactNode;
 }) {
   return (
-    <div className="flex max-w-2xl flex-col gap-2">
+    <div className="flex max-w-2xl reveal flex-col gap-2">
       <p className="text-sm font-medium tracking-wide text-muted-foreground uppercase">{eyebrow}</p>
       <h2
         id={id}
@@ -207,7 +207,8 @@ function HowItWorks() {
           {STEPS.map(({ icon: Icon, title, body }, i) => (
             <li
               key={title}
-              className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-paper md:p-6 hc:border-2"
+              style={{ "--i": i } as CSSProperties}
+              className="flex card-lift reveal flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-paper md:p-6 hc:border-2"
             >
               <div className="flex items-center gap-3">
                 <span
@@ -235,17 +236,18 @@ function Features() {
   return (
     <section
       aria-labelledby="features-title"
-      className="bg-secondary px-4 py-16 text-secondary-foreground md:px-8 md:py-24"
+      className="paper-grain bg-secondary px-4 py-16 text-secondary-foreground md:px-8 md:py-24"
     >
       <div className="mx-auto flex max-w-6xl flex-col gap-10">
         <SectionHeading id="features-title" eyebrow="Why PaperCut">
           Built for the essay you&apos;re actually writing
         </SectionHeading>
         <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {FEATURES.map(({ icon: Icon, title, body, soon }) => (
+          {FEATURES.map(({ icon: Icon, title, body, soon }, i) => (
             <li
               key={title}
-              className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-paper hc:border-2"
+              style={{ "--i": i } as CSSProperties}
+              className="flex card-lift reveal flex-col gap-3 rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-paper hc:border-2"
             >
               <Icon className="size-6 text-primary" strokeWidth={1.75} aria-hidden />
               <h3 className="flex flex-wrap items-center gap-2 font-display text-lg font-semibold text-primary">
@@ -294,8 +296,8 @@ function Trust() {
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <TrustList icon={Database} title="Comes from the source" items={FROM_SOURCE} />
-          <TrustList icon={Bot} title="What Claude writes" items={FROM_CLAUDE} />
+          <TrustList icon={Database} title="Comes from the source" items={FROM_SOURCE} index={0} />
+          <TrustList icon={Bot} title="What Claude writes" items={FROM_CLAUDE} index={1} />
         </div>
       </div>
     </section>
@@ -306,13 +308,18 @@ function TrustList({
   icon: Icon,
   title,
   items,
+  index,
 }: {
   icon: LucideIcon;
   title: string;
   items: string[];
+  index: number;
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-teal-600 bg-teal-800 p-5 md:p-6 hc:border-2 hc:border-cream-200">
+    <div
+      style={{ "--i": index } as CSSProperties}
+      className="flex reveal flex-col gap-3 rounded-2xl border border-teal-600 bg-teal-800 p-5 md:p-6 hc:border-2 hc:border-cream-200"
+    >
       <h3 className="flex items-center gap-2 font-display text-xl font-semibold text-cream-200">
         <Icon className="size-5" strokeWidth={1.75} aria-hidden />
         {title}
@@ -332,7 +339,7 @@ function TrustList({
 function ClosingCta() {
   return (
     <section aria-labelledby="cta-title" className="bg-background px-4 py-16 md:px-8 md:py-20">
-      <div className="mx-auto flex max-w-3xl flex-col items-center gap-5 text-center">
+      <div className="mx-auto flex max-w-3xl reveal flex-col items-center gap-5 text-center">
         <h2
           id="cta-title"
           className="font-display text-3xl font-semibold text-balance text-primary md:text-4xl"

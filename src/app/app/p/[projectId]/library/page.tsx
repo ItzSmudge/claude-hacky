@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { Suspense } from "react";
+import { Suspense, ViewTransition } from "react";
 import { z } from "zod";
 import { ExportPanel } from "@/components/library/export-panel";
 import type { LibraryItem } from "@/components/library/library-groups";
@@ -19,11 +19,15 @@ export const metadata: Metadata = { title: "Library" };
 
 export default function LibraryPage({ params }: PageProps<"/app/p/[projectId]/library">) {
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
-      <Suspense fallback={<LibrarySkeleton />}>
-        <Library params={params} />
-      </Suspense>
-    </div>
+    // Tab switches crossfade (this page enters, the last one exits); router.refresh() and
+    // Suspense reveals update in place with no fade (default="none").
+    <ViewTransition enter="auto" exit="auto" default="none">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+        <Suspense fallback={<LibrarySkeleton />}>
+          <Library params={params} />
+        </Suspense>
+      </div>
+    </ViewTransition>
   );
 }
 

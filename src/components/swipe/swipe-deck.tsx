@@ -143,6 +143,12 @@ export function SwipeDeck({
   const rotate = useTransform(x, [-200, 200], [-12, 12]);
   const saveStamp = useTransform(x, [40, 120], [0, 1]);
   const skipStamp = useTransform(x, [-120, -40], [1, 0]);
+  // Stamps slam down (shrink to size as they appear); the card takes a faint wash of the same ink,
+  // starting with the stamp so colour is never the only cue.
+  const saveStampScale = useTransform(x, [40, 120], [1.5, 1]);
+  const skipStampScale = useTransform(x, [-120, -40], [1, 1.5]);
+  const saveTint = useTransform(x, [40, 160], [0, 1]);
+  const skipTint = useTransform(x, [-160, -40], [1, 0]);
   const dragControls = useDragControls();
 
   const cardRef = useRef<HTMLDivElement>(null);
@@ -468,7 +474,13 @@ export function SwipeDeck({
               key={item.paper.id}
               inert
               initial={false}
-              animate={{ scale: 1 - 0.04 * depth, y: 8 * depth }}
+              // A slightly messy pile: back cards sit a degree or so off square.
+              animate={{
+                scale: 1 - 0.04 * depth,
+                y: 8 * depth,
+                // Static, so not gated on reduced motion (which would differ server vs client).
+                rotate: depth % 2 ? 1.5 : -1,
+              }}
               transition={reduceMotion ? { duration: 0 } : SPRING}
               className="pointer-events-none origin-top"
             >
@@ -503,16 +515,32 @@ export function SwipeDeck({
               className="relative cursor-grab select-none active:cursor-grabbing"
             >
               <PaperCard {...top} claims={claims} onDetails={onDetails ? details : undefined} />
+              <motion.div
+                aria-hidden
+                style={{ opacity: flash === "save" ? 1 : saveTint }}
+                className="pointer-events-none absolute inset-0 rounded-2xl bg-primary/10 ring-2 ring-primary/40 ring-inset"
+              />
+              <motion.div
+                aria-hidden
+                style={{ opacity: flash === "skip" ? 1 : skipTint }}
+                className="pointer-events-none absolute inset-0 rounded-2xl bg-challenges/10 ring-2 ring-challenges/40 ring-inset"
+              />
               <motion.span
                 aria-hidden
-                style={{ opacity: flash === "save" ? 1 : saveStamp }}
+                style={{
+                  opacity: flash === "save" ? 1 : saveStamp,
+                  scale: flash === "save" ? 1 : saveStampScale,
+                }}
                 className="pointer-events-none absolute top-6 left-5 -rotate-12 rounded-lg border-4 border-primary bg-card/80 px-3 py-1 font-display text-3xl font-semibold tracking-wide text-primary uppercase"
               >
                 Saved
               </motion.span>
               <motion.span
                 aria-hidden
-                style={{ opacity: flash === "skip" ? 1 : skipStamp }}
+                style={{
+                  opacity: flash === "skip" ? 1 : skipStamp,
+                  scale: flash === "skip" ? 1 : skipStampScale,
+                }}
                 className="pointer-events-none absolute top-6 right-5 rotate-12 rounded-lg border-4 border-challenges bg-card/80 px-3 py-1 font-display text-3xl font-semibold tracking-wide text-challenges uppercase"
               >
                 Skip
@@ -522,7 +550,7 @@ export function SwipeDeck({
         ) : loading ? (
           <CardSkeleton />
         ) : (
-          <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card p-8 text-center shadow-paper">
+          <div className="flex animate-in flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card p-8 text-center shadow-paper duration-300 zoom-in-95 fade-in">
             <p className="font-display text-xl font-semibold text-primary">
               {total === 0 && !onStartOver
                 ? "No papers to swipe yet."

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import { RollingText } from "@/components/motion/rolling-text";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { feedSummary, presenceText, teammateSave, type FeedItem } from "./live";
 
@@ -134,9 +135,11 @@ export function LivePresence({
   // Plain text, not a live region: who's around is ambient, and sockets on phones come and go.
   if (!text) return null;
   return (
-    <p className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-sm font-medium text-card-foreground">
+    <p className="inline-flex shrink-0 animate-in items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-sm font-medium text-card-foreground duration-200 zoom-in-90 fade-in">
       <span aria-hidden className="size-2 rounded-full bg-supports motion-safe:animate-pulse" />
-      <span aria-hidden>{text.short}</span>
+      <span aria-hidden>
+        <RollingText value={text.short} />
+      </span>
       <span className="sr-only">{text.long}</span>
     </p>
   );

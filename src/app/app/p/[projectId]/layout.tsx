@@ -27,6 +27,7 @@ export default function ProjectLayout({ children, params }: LayoutProps<"/app/p/
           <Tabs params={params} />
         </Suspense>
       </header>
+      {/* Each page wraps itself in a <ViewTransition>, so tab switches crossfade (not refreshes). */}
       {children}
     </div>
   );

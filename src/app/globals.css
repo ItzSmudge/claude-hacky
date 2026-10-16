@@ -316,6 +316,120 @@ html.text-large {
     animation-duration: 0.01ms !important;
     /* Infinite loops (skeleton pulse, spinners) would otherwise restart every 0.01ms: flicker. */
     animation-iteration-count: 1 !important;
+    /* Delayed entrances (fill: both) would otherwise sit hidden/empty for the delay, then snap. */
+    animation-delay: 0s !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Motion polish ───────────────────────────────────────────────────────────
+   Index cards lift off the desk on hover. Hover only on devices that can hover, so phones
+   never get a stuck lifted card; keyboard users get the same deeper shadow via focus-within. */
+@utility card-lift {
+  transition:
+    translate 200ms ease-out,
+    box-shadow 200ms ease-out,
+    border-color 200ms ease-out;
+  &:focus-within {
+    box-shadow: var(--shadow-paper-lg);
+  }
+  @media (hover: hover) {
+    &:hover {
+      box-shadow: var(--shadow-paper-lg);
+      border-color: color-mix(in oklch, var(--primary) 35%, var(--border));
+    }
+    &:is(.hc *):hover {
+      border-color: var(--border);
+    }
+    /* Only the lift is motion; reduced motion keeps the shadow and border cue. */
+    @media (prefers-reduced-motion: no-preference) {
+      &:hover {
+        translate: 0 -3px;
+      }
+    }
+  }
+}
+
+/* "Why it matters" is drawn in like a highlighter stroke. A solid-colour fill, not a gradient. */
+@keyframes highlight-sweep {
+  from {
+    background-size: 0% 100%;
+  }
+  to {
+    background-size: 100% 100%;
+  }
+}
+@utility highlight-sweep {
+  background-color: transparent;
+  background-image: linear-gradient(var(--highlight), var(--highlight));
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  animation: highlight-sweep 450ms ease-out 120ms both;
+}
+
+/* Meters (relevance) fill from empty when their card arrives. */
+@keyframes fill-in {
+  from {
+    transform: scaleX(0);
+  }
+}
+@utility fill-in {
+  transform-origin: left;
+  animation: fill-in 500ms cubic-bezier(0.2, 0.8, 0.2, 1) 200ms both;
+}
+
+/* Marketing: cards and headings rise in as they scroll into view. Pure CSS (scroll-driven
+   animation), so nothing is hidden if JS is slow; browsers without support show them as is. */
+/* transform, not translate: card-lift's hover uses translate and must keep its transition. */
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+@utility reveal {
+  @media (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: view()) {
+      animation: reveal linear both;
+      animation-timeline: view();
+      /* Short range, so text is never left half-faded when scrolling stops. */
+      animation-range: entry 0% entry 35%;
+      /* --i staggers siblings across a row; single-column phones get no stagger. */
+      @media (width >= 40rem) {
+        animation-range: entry calc(var(--i, 0) * 5%) entry calc(35% + var(--i, 0) * 5%);
+      }
+    }
+  }
+}
+
+/* Marketing only: a faint paper grain (≤ 4% opacity, per the design system) on cream bands. */
+@utility paper-grain {
+  position: relative;
+  isolation: isolate;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.04;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  &:is(.hc *)::before {
+    display: none;
+  }
+}
+
+/* Page crossfades (React <ViewTransition>): quick and quiet; off under reduced motion. */
+::view-transition-old(*),
+::view-transition-new(*) {
+  animation-duration: 200ms;
+  animation-timing-function: ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }

@@ -1,6 +1,6 @@
 import { connection } from "next/server";
 import type { Metadata } from "next";
-import { Suspense } from "react";
+import { Suspense, ViewTransition } from "react";
 import { z } from "zod";
 import { DeckSkeleton } from "@/components/swipe/deck-skeleton";
 import { PersistedSwipeDeck } from "@/components/swipe/persisted-swipe-deck";
@@ -18,14 +18,18 @@ export const metadata: Metadata = { title: "Deck" };
 export default function DeckPage({ params }: PageProps<"/app/p/[projectId]">) {
   // Clip the fling at the screen edge (bleeds into main's gutter) without cutting focus rings or shadows.
   return (
-    <div className="-mx-4 overflow-x-clip px-4 md:-mx-8 md:px-8">
-      <div className="mx-auto flex w-full max-w-md flex-col gap-4">
-        <h2 className="sr-only">Deck</h2>
-        <Suspense fallback={<DeckSkeleton />}>
-          <Deck params={params} />
-        </Suspense>
+    // Tab switches crossfade (this page enters, the last one exits); router.refresh() and
+    // Suspense reveals update in place with no fade (default="none").
+    <ViewTransition enter="auto" exit="auto" default="none">
+      <div className="-mx-4 overflow-x-clip px-4 md:-mx-8 md:px-8">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-4">
+          <h2 className="sr-only">Deck</h2>
+          <Suspense fallback={<DeckSkeleton />}>
+            <Deck params={params} />
+          </Suspense>
+        </div>
       </div>
-    </div>
+    </ViewTransition>
   );
 }
 
