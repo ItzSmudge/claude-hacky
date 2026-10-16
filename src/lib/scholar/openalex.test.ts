@@ -172,6 +172,29 @@ describe("searchOpenAlex", () => {
     expect(url.searchParams.get("filter")).toBe(TYPES);
   });
 
+  // OpenAlex 400s on `?` and `*` in a stemmed search ("Wildcards require exact search"), and
+  // students type questions. Other punctuation is fine.
+  it("drops wildcard characters from questions before searching", async () => {
+    const fetch = vi.fn(async () => body([]));
+    await searchOpenAlex(
+      { q: "Does heavy social media use harm teenage mental health?" },
+      { fetch, sleep },
+    );
+    expect(urlOf(fetch).searchParams.get("search")).toBe(
+      "Does heavy social media use harm teenage mental health",
+    );
+    await searchOpenAlex({ q: "teen* sleep?? (and mood)" }, { fetch, sleep });
+    expect(urlOf(fetch, 1).searchParams.get("search")).toBe("teen sleep (and mood)");
+  });
+
+  it("rejects a query that is only wildcards without calling OpenAlex", async () => {
+    const fetch = vi.fn(async () => body([]));
+    await expect(searchOpenAlex({ q: " ?* " }, { fetch, sleep })).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it.each([
     [{ yearFrom: 2015, yearTo: 2020 }, `${TYPES},publication_year:2015-2020`],
     [{ yearFrom: 2015 }, `${TYPES},publication_year:>2014`],
