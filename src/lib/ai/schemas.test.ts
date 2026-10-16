@@ -8,7 +8,9 @@ import {
   normaliseNotStated,
   NOT_STATED,
   notStated,
+  outlineOutputSchema,
   paperAnalysisOutputSchema,
+  projectOutlineSchema,
   words,
 } from "./schemas";
 
@@ -256,5 +258,40 @@ describe("paper card limits (review should-fix 6 and 7)", () => {
       false,
     );
     expect(shortenedFieldOutputSchema(8).parse({ text: "not stated" }).text).toBe("not stated");
+  });
+});
+
+describe("outlineOutputSchema", () => {
+  const n = (count: number) => Array.from({ length: count }, (_, i) => `w${i}`).join(" ");
+  const point = { text: "Screen time links weakly to wellbeing.", papers: ["P1", "P2"] };
+  const section = { heading: "Background", points: [point] };
+
+  it("accepts a valid reply", () => {
+    const reply = { sections: [section, { heading: "Methods", points: [point, point] }] };
+    expect(outlineOutputSchema.safeParse(reply).success).toBe(true);
+  });
+
+  it.each([
+    ["a 9-word heading", { sections: [{ ...section, heading: n(9) }] }],
+    ["a 31-word point", { sections: [{ ...section, points: [{ ...point, text: n(31) }] }] }],
+    ["7 sections", { sections: Array(7).fill(section) }],
+    ["6 points", { sections: [{ ...section, points: Array(6).fill(point) }] }],
+    [
+      "a link in a point",
+      { sections: [{ ...section, points: [{ ...point, text: "See https://x.org" }] }] },
+    ],
+  ])("rejects %s", (_, reply) => {
+    expect(outlineOutputSchema.safeParse(reply).success).toBe(false);
+  });
+});
+
+describe("projectOutlineSchema", () => {
+  it("rejects a point with no papers", () => {
+    const outline = {
+      projectId: "p",
+      paperCount: 2,
+      sections: [{ heading: "Background", points: [{ text: "A point.", paperIds: [] }] }],
+    };
+    expect(projectOutlineSchema.safeParse(outline).success).toBe(false);
   });
 });

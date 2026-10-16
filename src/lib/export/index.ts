@@ -18,6 +18,7 @@ export { csvExport } from "./csv";
 export { latexBibliography } from "./latex";
 export { loadSavedLibrary, type LoadResult, type SavedLibrary } from "./library";
 export { markdownReadingList } from "./markdown";
+export { outlineLatex, outlineMarkdown, unusedPaperIds } from "./outline";
 export { fetchDoiBibtex, normaliseDoi } from "./doi";
 
 const MAX_CONCURRENT_FETCHES = 4;
