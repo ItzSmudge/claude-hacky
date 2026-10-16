@@ -2,14 +2,14 @@
 
 import { LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { ensureAnonymousSession } from "./ensure-session";
 
-/** Join code of the shared demo project (supabase/seed.sql locally, the RD-02 script on prod). */
+/** Join code of the shared demo project (supabase/seed.sql locally, supabase/demo/prod-demo.sql on prod). */
 export const DEMO_JOIN_CODE = "DEMO42";
 
 /**
@@ -28,13 +28,17 @@ export function OpenDemoButton({
   className?: string;
 }) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
+  const [joining, setJoining] = useState(false);
+  // Stays busy until the deck route has committed, not just until push() is called.
+  const [navigating, startTransition] = useTransition();
+  const busy = joining || navigating;
 
   async function open() {
     if (busy) return;
-    setBusy(true);
+    setJoining(true);
     try {
-      await ensureAnonymousSession();
+      // A failed sign-in has already shown its own toast; don't add a second one.
+      if ((await ensureAnonymousSession()) === "failed") return;
       const { data: projectId, error } = await getSupabaseBrowserClient().rpc("join_project", {
         p_code: DEMO_JOIN_CODE,
       });
@@ -44,13 +48,15 @@ export function OpenDemoButton({
         return;
       }
       onDone?.();
-      router.push(`/app/p/${projectId}`);
-      router.refresh(); // the sidebar now lists the demo
+      startTransition(() => {
+        router.push(`/app/p/${projectId}`);
+        router.refresh(); // the shared /app layout's sidebar now lists the demo
+      });
     } catch (err) {
       console.error("[demo] join failed", err);
       toast.error("Couldn't open the demo project. Try again.");
     } finally {
-      setBusy(false);
+      setJoining(false);
     }
   }
 
@@ -60,10 +66,9 @@ export function OpenDemoButton({
         type="button"
         onClick={() => void open()}
         aria-disabled={busy || undefined}
-        className={cn(
-          "rounded underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-hidden",
-          className,
-        )}
+        aria-busy={busy || undefined}
+        // Focus ring comes from the caller, which knows the surface it sits on.
+        className={cn("rounded underline underline-offset-4", className)}
       >
         {busy ? "Opening the demo…" : "Try the demo project"}
       </button>
@@ -73,6 +78,7 @@ export function OpenDemoButton({
     <Button
       onClick={() => void open()}
       aria-disabled={busy || undefined}
+      aria-busy={busy || undefined}
       className={cn("min-h-11 aria-disabled:opacity-70", className)}
     >
       {busy && (
