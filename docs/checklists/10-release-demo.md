@@ -9,7 +9,7 @@
 - [x] RD-02 Seed a polished demo project (real brief + query) on prod
 - [ ] RD-03 Demo script (2 min): problem → upload brief → swipe 5 → group joins from phone → disagreement → export LaTeX
 - [ ] RD-04 Stretch P2: lit-review scaffold (outline with `\cite` keys validated against library)
-- [ ] RD-05 README, screenshots, submission form
+- [~] @Claude docs/release-readme RD-05 README, screenshots, submission form
 
 Releases: open the `chore(release): …` PR from `dev` to `main`; **ItzSmudge merges it** (Vercel Hobby only deploys their commits) and runs `pnpm db:push:prod` if migrations changed.
 
