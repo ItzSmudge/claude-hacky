@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { z } from "zod";
+import { ProjectInvite } from "@/components/group/project-invite";
 import { DeckSkeleton } from "@/components/swipe/deck-skeleton";
 import { PersistedSwipeDeck } from "@/components/swipe/persisted-swipe-deck";
 import { fixturePapers, fixtureProject } from "@/fixtures";
@@ -15,15 +16,25 @@ export default function DeckPage({ params }: PageProps<"/app/p/[projectId]">) {
   return (
     <div className="-mx-4 overflow-x-clip px-4 md:-mx-8 md:px-8">
       <div className="mx-auto flex w-full max-w-md flex-col gap-4">
-        <h1 className="font-display text-2xl font-semibold text-primary md:text-3xl">
-          {fixtureProject.title}
-        </h1>
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="font-display text-2xl font-semibold text-primary md:text-3xl">
+            {fixtureProject.title}
+          </h1>
+          {/* GR-01: share the join code / link */}
+          <Suspense fallback={null}>
+            <InviteFor params={params} />
+          </Suspense>
+        </div>
         <Suspense fallback={<DeckSkeleton />}>
           <Deck params={params} />
         </Suspense>
       </div>
     </div>
   );
+}
+
+async function InviteFor({ params }: Pick<PageProps<"/app/p/[projectId]">, "params">) {
+  return <ProjectInvite projectId={(await params).projectId} />;
 }
 
 async function Deck({ params }: Pick<PageProps<"/app/p/[projectId]">, "params">) {
