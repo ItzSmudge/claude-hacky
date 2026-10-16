@@ -18,7 +18,7 @@
    - `methodology` and `limitations` (≤ 15 words each, "not stated in abstract" allowed)
    - `use_as`: `evidence | counterpoint | background | method`
 5. **Credibility is computed, not generated**: citation count, venue type, peer-reviewed flag, recency → deterministic score shown with its inputs.
-6. Swipe right = save, left = skip, up = details. Keyboard: ← → ↑, Space = read aloud.
+6. Swipe right = save, left = skip, up = details. Keyboard: ← → ↑, Z = undo; read aloud via the Listen button or voice.
 7. **Library**: saved papers per project, persisted (fixes "papers disappear"), sidebar of past projects like a chat history.
 8. **Exports**: BibTeX (`.bib`, fetched from doi.org content negotiation where DOI exists, otherwise built from metadata by code), LaTeX `thebibliography` block, CSV, Markdown reading list, "copy `\cite{key}`".
 9. **Relations view** (on the saved set, not per card): Claude groups saved papers into supports / challenges / methods, flags complementary vs contrasting pairs — using only papers in the library.
