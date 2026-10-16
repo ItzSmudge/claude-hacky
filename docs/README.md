@@ -2,6 +2,7 @@
 
 - `SETUP_PLAN.md` — the original bootstrap plan (decisions, design system, phases).
 - `architecture.md` — product summary, data flow, tables, API + route ownership.
+- `google-oauth-setup.md` — turning on Google sign-in (Google Cloud + Supabase steps).
 - `checklists/` — every task, by workstream. **This is the team's task board.**
 - `specs/`, `plans/` — one spec + one plan per non-trivial task: `<YYYY-MM-DD>-<task-id>-<slug>.md`.
 
