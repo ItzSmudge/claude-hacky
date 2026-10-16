@@ -6,6 +6,7 @@ import { Suspense, ViewTransition } from "react";
 import { z } from "zod";
 import { ExportPanel } from "@/components/library/export-panel";
 import type { LibraryItem } from "@/components/library/library-groups";
+import { OutlinePanel } from "@/components/library/outline-panel";
 import { RelationsPanel } from "@/components/library/relations-panel";
 import { SavedPaperList } from "@/components/library/saved-paper-list";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,12 @@ async function Library({ params }: Pick<PageProps<"/app/p/[projectId]/library">,
     savedByTeammate: (savedBy.get(paper.id) ?? []).some((id) => id !== userId),
   }));
   const deckHref = `/app/p/${projectId}`;
+  const relationPapers = papers.map((p) => ({
+    id: p.id,
+    title: p.title,
+    year: p.year,
+    citeKey: keys.get(p.id)!,
+  }));
   return (
     <>
       <header className="flex flex-col gap-1">
@@ -100,17 +107,9 @@ async function Library({ params }: Pick<PageProps<"/app/p/[projectId]/library">,
         <>
           <SavedPaperList projectId={projectId} items={items} claims={claims} />
           {papers.length >= 2 ? (
-            <RelationsPanel
-              projectId={projectId}
-              claims={claims}
-              papers={papers.map((p) => ({
-                id: p.id,
-                title: p.title,
-                year: p.year,
-                citeKey: keys.get(p.id)!,
-              }))}
-            />
+            <RelationsPanel projectId={projectId} claims={claims} papers={relationPapers} />
           ) : null}
+          <OutlinePanel projectId={projectId} papers={relationPapers} />
           <ExportPanel projectId={projectId} citeKeys={sortedKeys} />
         </>
       )}
