@@ -18,7 +18,7 @@ export default function DeckPage({ params }: PageProps<"/app/p/[projectId]">) {
     <div className="-mx-4 overflow-x-clip px-4 md:-mx-8 md:px-8">
       <div className="mx-auto flex w-full max-w-md flex-col gap-4">
         <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
-          <h1 className="min-w-56 flex-1 font-display text-2xl font-semibold text-primary md:text-3xl">
+          <h1 className="min-w-56 flex-1 font-display text-2xl font-semibold text-balance break-words text-primary md:text-3xl">
             <Suspense fallback={<span className="text-muted-foreground">Loading project…</span>}>
               <Title params={params} />
             </Suspense>
