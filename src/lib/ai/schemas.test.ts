@@ -2,7 +2,15 @@ import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { fixturePapers } from "@/fixtures";
-import { countWords, NOT_STATED, notStated, paperAnalysisOutputSchema, words } from "./schemas";
+import {
+  briefContextOutputSchema,
+  countWords,
+  normaliseNotStated,
+  NOT_STATED,
+  notStated,
+  paperAnalysisOutputSchema,
+  words,
+} from "./schemas";
 
 describe("countWords", () => {
   it.each([
@@ -129,6 +137,66 @@ describe("paperAnalysisOutputSchema", () => {
     const json = JSON.stringify(betaZodOutputFormat(paperAnalysisOutputSchema).schema);
     expect(json).toMatch(/at most 35 words/i);
     expect(json).toMatch(/one entry per claim id/i);
+    expect(json).toContain(String.raw`exactly \"not stated\"`);
+  });
+});
+
+describe("normaliseNotStated", () => {
+  it.each(["not stated", "Not stated.", "N/A", "None stated", "unknown", "  not stated  "])(
+    "turns %j into the exact marker",
+    (text) => expect(normaliseNotStated(text)).toBe(NOT_STATED),
+  );
+
+  it("leaves real text alone", () => {
+    expect(normaliseNotStated("Survey of 500 teens.")).toBe("Survey of 500 teens.");
+  });
+});
+
+describe("briefContextOutputSchema", () => {
+  const valid = {
+    topic: "Social media and adolescent wellbeing",
+    summary:
+      "A 2,000-word essay arguing whether heavy social media use harms teenage mental health.",
+    claims: ["Heavy social media use worsens adolescent sleep."],
+    themes: ["sleep", "anxiety"],
+    constraints: ["Sources from 2015 onwards"],
+  };
+
+  it("accepts a valid context", () => {
+    expect(briefContextOutputSchema.parse(valid)).toEqual(valid);
+  });
+
+  it("accepts empty lists and a not-stated summary", () => {
+    const empty = { ...valid, summary: NOT_STATED, claims: [], themes: [], constraints: [] };
+    expect(briefContextOutputSchema.safeParse(empty).success).toBe(true);
+  });
+
+  it("rejects more than 6 claims", () => {
+    const claims = Array.from({ length: 7 }, (_, i) => `Claim number ${i}.`);
+    expect(briefContextOutputSchema.safeParse({ ...valid, claims }).success).toBe(false);
+  });
+
+  it("rejects a claim over 25 words", () => {
+    const claims = ["word ".repeat(26).trim()];
+    expect(briefContextOutputSchema.safeParse({ ...valid, claims }).success).toBe(false);
+  });
+
+  it.each([
+    ["claims", ["See https://example.org for details."]],
+    ["constraints", ["Must cite 10.1000/xyz123"]],
+    ["themes", ["www.example.org"]],
+  ])("rejects links and DOIs in %s", (field, value) => {
+    expect(briefContextOutputSchema.safeParse({ ...valid, [field]: value }).success).toBe(false);
+  });
+
+  it("rejects an empty topic", () => {
+    expect(briefContextOutputSchema.safeParse({ ...valid, topic: "  " }).success).toBe(false);
+  });
+
+  it("tells the model the limits in the JSON schema", () => {
+    const json = JSON.stringify(betaZodOutputFormat(briefContextOutputSchema).schema);
+    expect(json).toMatch(/at most 25 words/i);
+    expect(json).toMatch(/up to 6 claims/i);
     expect(json).toContain(String.raw`exactly \"not stated\"`);
   });
 });
