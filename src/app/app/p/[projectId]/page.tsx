@@ -1,5 +1,6 @@
 import { connection } from "next/server";
-import { cache, Suspense } from "react";
+import type { Metadata } from "next";
+import { Suspense } from "react";
 import { z } from "zod";
 import { DeckSkeleton } from "@/components/swipe/deck-skeleton";
 import { PersistedSwipeDeck } from "@/components/swipe/persisted-swipe-deck";
@@ -11,6 +12,8 @@ import type { SwipeDecision } from "@/types/domain";
 
 // Owner: swipe (SW-*). Papers come from the queue (SW-04), with fixtures as a fallback until
 // /api/analyse exists (AI-04); swipes persist via SW-05; earlier swipes seed the ranking (RK-02).
+export const metadata: Metadata = { title: "Deck" };
+
 export default function DeckPage({ params }: PageProps<"/app/p/[projectId]">) {
   // Clip the fling at the screen edge (bleeds into main's gutter) without cutting focus rings or shadows.
   return (
@@ -59,39 +62,34 @@ async function Deck({ params }: Pick<PageProps<"/app/p/[projectId]">, "params">)
 }
 
 /**
- * The project's own title, search query and claims (from its parsed brief), read as the user.
- * The demo's values only stand
- * in when the row can't be read; a project with no brief simply has no claims.
+ * The project's search query and claims (from its parsed brief), read as the user. The demo's
+ * values only stand in when the row can't be read; a project with no brief simply has no claims.
  */
-const projectInfo = cache(
-  async (
-    projectId: string,
-  ): Promise<{ title: string; query: string; claims: typeof fixtureProject.context.claims }> => {
-    const demo = {
-      title: fixtureProject.title,
-      query: fixtureProject.query,
-      claims: fixtureProject.context.claims,
-    };
-    if (!z.uuid().safeParse(projectId).success) return demo;
-    // Request time only: supabase-js reads the clock to check token expiry.
-    await connection();
-    const supabase = await getSupabaseServerClient();
-    const { data, error } = await supabase
-      .from("projects")
-      .select("title, query, context")
-      .eq("id", projectId)
-      .maybeSingle();
-    if (error || !data) {
-      if (error) console.error("[deck] reading project failed", error.code, error.message);
-      return demo;
-    }
-    return {
-      title: data.title,
-      query: data.query?.trim() || data.title,
-      claims: projectContextSchema.safeParse(data.context).data?.claims ?? [],
-    };
-  },
-);
+async function projectInfo(
+  projectId: string,
+): Promise<{ query: string; claims: typeof fixtureProject.context.claims }> {
+  const demo = {
+    query: fixtureProject.query,
+    claims: fixtureProject.context.claims,
+  };
+  if (!z.uuid().safeParse(projectId).success) return demo;
+  // Request time only: supabase-js reads the clock to check token expiry.
+  await connection();
+  const supabase = await getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("projects")
+    .select("title, query, context")
+    .eq("id", projectId)
+    .maybeSingle();
+  if (error || !data) {
+    if (error) console.error("[deck] reading project failed", error.code, error.message);
+    return demo;
+  }
+  return {
+    query: data.query?.trim() || data.title,
+    claims: projectContextSchema.safeParse(data.context).data?.claims ?? [],
+  };
+}
 
 /** The signed-in user's swipes here, oldest first, so a reload resumes the deck. Empty on any failure. */
 async function swipeHistory(

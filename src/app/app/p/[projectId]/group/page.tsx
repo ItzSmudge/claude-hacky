@@ -76,10 +76,6 @@ function GroupSkeleton() {
   return (
     <div role="status" className="flex flex-col gap-6">
       <span className="sr-only">Loading the group&apos;s list…</span>
-      <div aria-hidden className="flex flex-col gap-2">
-        <Skeleton className="h-8 w-56 motion-reduce:animate-none" />
-        <Skeleton className="h-5 w-72 motion-reduce:animate-none" />
-      </div>
       <Skeleton aria-hidden className="h-64 rounded-2xl motion-reduce:animate-none" />
     </div>
   );

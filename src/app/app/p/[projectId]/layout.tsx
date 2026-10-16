@@ -14,7 +14,7 @@ export default function ProjectLayout({ children, params }: LayoutProps<"/app/p/
     <div className="flex flex-col gap-6">
       <header className="mx-auto flex w-full max-w-2xl flex-col gap-4">
         <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
-          <h1 className="min-w-56 flex-1 font-display text-2xl font-semibold text-balance break-words text-primary md:text-3xl">
+          <h1 className="min-w-0 flex-1 basis-56 font-display text-2xl font-semibold text-balance break-words text-primary md:text-3xl">
             <Suspense fallback={<span className="text-muted-foreground">Loading project…</span>}>
               <Title params={params} />
             </Suspense>
@@ -48,8 +48,9 @@ async function Tabs({ params }: Params) {
 }
 
 /**
- * The project's title and how many papers the group has saved, read as the user. The demo's title
- * stands in when the row can't be read, like the deck does.
+ * The project's title and how many papers the group has saved, read as the user. A non-uuid id is
+ * the deck's fixture demo, so it gets the demo's title; a real id we can't read (missing, not a
+ * member) says so instead of borrowing the demo's name above a not-found page.
  */
 const header = cache(async (projectId: string): Promise<{ title: string; saved: number }> => {
   const demo = { title: fixtureProject.title, saved: 0 };
@@ -63,5 +64,5 @@ const header = cache(async (projectId: string): Promise<{ title: string; saved: 
   ]);
   if (project.error) console.error("[project] reading title failed", project.error.message);
   if (saves.error) console.error("[project] counting saves failed", saves.error.message);
-  return { title: project.data?.title ?? demo.title, saved: countSaved(saves.data) };
+  return { title: project.data?.title ?? "Project not found", saved: countSaved(saves.data) };
 });

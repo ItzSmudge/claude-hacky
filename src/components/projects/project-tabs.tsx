@@ -8,7 +8,7 @@ import { z } from "zod";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { countSaved } from "./saved-count";
+import { countSaved, SWIPES_CHANGED } from "./saved-count";
 
 const RECOUNT_MS = 300;
 
@@ -20,8 +20,11 @@ const TABS: { segment: string | null; label: string; icon: LucideIcon; path: str
 
 /**
  * PR-04: Deck · Library · Group as card-catalogue divider tabs. The Library count is the group's
- * saved papers, recounted shortly after any change to this project's swipes (Realtime) and on
- * every tab switch, so undo and remove-from-library are counted too.
+ * saved papers (raw rows, so a paper whose cached data is broken still counts). It recounts shortly
+ * after teammates' saves (Realtime INSERT/UPDATE), after this tab's own swipe writes (undo included,
+ * via SWIPES_CHANGED) and on every tab switch, and takes the server's count on each refresh.
+ * No Realtime DELETE listener: deletes can't be filtered or RLS-checked, so it would leak every
+ * project's swipe keys to every browser.
  */
 export function ProjectTabs({
   projectId,
@@ -32,6 +35,12 @@ export function ProjectTabs({
 }) {
   const active = useSelectedLayoutSegment();
   const [saved, setSaved] = useState(initialSaved);
+  // A server refresh (library remove, group vote) brings a fresh count: take it.
+  const [serverSaved, setServerSaved] = useState(initialSaved);
+  if (initialSaved !== serverSaved) {
+    setServerSaved(initialSaved);
+    setSaved(initialSaved);
+  }
   const recount = useRef<() => void>(() => {});
 
   useEffect(() => {
@@ -59,6 +68,10 @@ export function ProjectTabs({
       timer = setTimeout(() => void run(), RECOUNT_MS);
     };
     recount.current = schedule;
+    const onLocal = (e: Event) => {
+      if ((e as CustomEvent<{ projectId: string }>).detail?.projectId === projectId) schedule();
+    };
+    window.addEventListener(SWIPES_CHANGED, onLocal);
 
     void (async () => {
       const { data } = await supabase.auth.getSession();
@@ -81,14 +94,13 @@ export function ProjectTabs({
           { event: "UPDATE", schema: "public", table: "swipes", filter },
           schedule,
         )
-        // Realtime can't filter deletes (only the key comes through), so any delete recounts.
-        .on("postgres_changes", { event: "DELETE", schema: "public", table: "swipes" }, schedule)
         .subscribe();
     })();
 
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      window.removeEventListener(SWIPES_CHANGED, onLocal);
       recount.current = () => {};
       if (channel) void supabase.removeChannel(channel);
     };
@@ -110,9 +122,9 @@ export function ProjectTabs({
                 href={`/app/p/${projectId}${path}`}
                 aria-current={current ? "page" : undefined}
                 className={cn(
-                  "-mb-px flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-t-xl border border-transparent px-2 text-sm transition-colors duration-150 ease-out focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden motion-reduce:transition-none sm:gap-2",
+                  "relative -mb-px flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-t-xl border border-transparent px-2 text-sm transition-colors duration-150 ease-out focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden motion-reduce:transition-none sm:gap-2",
                   current
-                    ? "border-border border-b-card bg-card font-semibold text-primary hc:-mb-0.5 hc:border-2 hc:border-primary hc:border-b-card"
+                    ? "border-border border-b-card bg-card font-semibold text-primary before:absolute before:inset-x-4 before:top-0 before:h-[3px] before:rounded-b-full before:bg-primary hc:-mb-0.5 hc:border-2 hc:border-primary hc:border-b-card"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
@@ -126,7 +138,7 @@ export function ProjectTabs({
                   <>
                     <span
                       aria-hidden
-                      className="min-w-5 rounded-full bg-secondary px-1.5 text-center text-xs font-semibold text-secondary-foreground tabular-nums hc:border hc:border-primary"
+                      className="min-w-5 rounded-full bg-secondary px-1.5 text-center text-xs font-semibold text-secondary-foreground tabular-nums max-[300px]:hidden hc:border hc:border-primary"
                     >
                       {saved}
                     </span>

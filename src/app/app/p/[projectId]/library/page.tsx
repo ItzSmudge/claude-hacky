@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
@@ -14,6 +15,8 @@ import { citeKeys, loadSavedLibrary, sortByKey } from "@/lib/export";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 // Owner: library (LB-*). LB-01: saved papers by use / claim; LB-04: how they connect; LB-03: export.
+export const metadata: Metadata = { title: "Library" };
+
 export default function LibraryPage({ params }: PageProps<"/app/p/[projectId]/library">) {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
@@ -65,11 +68,11 @@ async function Library({ params }: Pick<PageProps<"/app/p/[projectId]/library">,
     <>
       <header className="flex flex-col gap-1">
         {heading}
-        <p className="text-muted-foreground">
-          {papers.length === 0
-            ? "No papers saved yet"
-            : `${papers.length} ${papers.length === 1 ? "paper" : "papers"} saved`}
-        </p>
+        {papers.length > 0 && (
+          <p className="text-muted-foreground">
+            {`${papers.length} ${papers.length === 1 ? "paper" : "papers"} saved`}
+          </p>
+        )}
       </header>
       {papers.length === 0 ? (
         <div className="flex flex-col items-start gap-4 rounded-2xl border border-border bg-card p-5 shadow-paper md:p-6">
@@ -109,7 +112,6 @@ function LibrarySkeleton() {
     <div role="status" className="flex flex-col gap-6">
       <span className="sr-only">Loading your library…</span>
       <div aria-hidden className="flex flex-col gap-2">
-        <Skeleton className="h-8 w-40 motion-reduce:animate-none" />
         <Skeleton className="h-5 w-72 motion-reduce:animate-none" />
       </div>
       <Skeleton aria-hidden className="h-96 rounded-2xl motion-reduce:animate-none" />
