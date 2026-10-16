@@ -1,9 +1,20 @@
 "use client";
 
+import { X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { SwipeRequest } from "@/lib/api-schemas";
-import { extractFeatures, rankItems, type SwipeSample } from "@/lib/ranking";
+import {
+  applyDeckFilters,
+  extractFeatures,
+  featurePhrase,
+  findInsight,
+  rankItems,
+  templateSentence,
+  type Insight,
+  type PaperFeature,
+  type SwipeSample,
+} from "@/lib/ranking";
 import type { ProjectContext, SwipeDecision } from "@/types/domain";
 import { speak, stop as stopSpeaking } from "@/components/a11y/read-aloud";
 import { cardScript } from "@/components/a11y/speech";
@@ -19,6 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toDeckFilters, useDeckFilters, type ActiveFilter } from "./deck-filters";
 import { DetailSheet } from "./detail-sheet";
 import { SwipeDeck, type DeckItem, type SwipeDeckHandle } from "./swipe-deck";
 import { classifyStatus, createSwipeSync, type SendResult, type SwipeOp } from "./swipe-sync";
@@ -31,6 +43,37 @@ const NO_ITEMS: DeckItem[] = [];
 const TOAST_POSITION = "top-center";
 /** sonner's buttons are 24px tall; inline style beats its stylesheet. */
 const TOAST_BUTTON_STYLE = { minHeight: 44, height: "auto", paddingInline: 16 };
+/** RK-03: swipes between two insight toasts. */
+const INSIGHT_GAP = 6;
+const INSIGHT_TOAST_ID = "rank-insight";
+/** The model's sentence is a nicety: after this the template is used instead. */
+const INSIGHT_WAIT_MS = 6_000;
+
+/** The model's wording when it answers in time, else the code-made template. */
+async function insightSentence(projectId: string, insight: Insight): Promise<string> {
+  try {
+    const res = await fetch("/api/ranking/insight", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        projectId,
+        kind: insight.feature.kind,
+        label: insight.feature.label,
+        direction: insight.direction,
+        count: insight.count,
+        total: insight.total,
+      }),
+      signal: AbortSignal.timeout(INSIGHT_WAIT_MS),
+    });
+    if (res.ok) {
+      const { sentence } = (await res.json()) as { sentence?: unknown };
+      if (typeof sentence === "string" && sentence.trim()) return sentence.trim().slice(0, 200);
+    }
+  } catch {
+    // Offline, slow or no model: the template says the same thing.
+  }
+  return templateSentence(insight);
+}
 
 async function sendSwipe(projectId: string, op: SwipeOp): Promise<SendResult> {
   const url = `/api/projects/${encodeURIComponent(projectId)}/swipes`;
@@ -170,34 +213,105 @@ export function PersistedSwipeDeck({
     persist.current.push(op);
   };
 
-  const featureIds = useMemo(
+  const features = useMemo(
     () =>
-      new Map(
+      new Map<string, PaperFeature[]>(
         items.map((i) => [
           i.paper.id,
           extractFeatures(i.paper, {
             credibility: i.credibility,
             now: now ? new Date(now) : undefined,
-          }).map((f) => f.id),
+          }),
         ]),
       ),
     [items, now],
   );
-  const ranked = useMemo(() => {
-    const decided = new Set(decisions.map((d) => d.paperId));
-    const history: SwipeSample[] = [
+  const featureIds = useMemo(
+    () => new Map([...features].map(([id, list]) => [id, list.map((f) => f.id)])),
+    [features],
+  );
+  const history = useMemo<SwipeSample[]>(
+    () => [
       ...initialHistory,
       ...decisions.flatMap(({ paperId, decision }) => {
-        const features = featureIds.get(paperId);
-        return features ? [{ features, decision }] : [];
+        const ids = featureIds.get(paperId);
+        return ids ? [{ features: ids, decision }] : [];
       }),
-    ];
-    return rankItems(
-      items.filter((i) => !decided.has(i.paper.id)),
-      (i) => featureIds.get(i.paper.id) ?? [],
-      history,
+    ],
+    [initialHistory, decisions, featureIds],
+  );
+  // RK-03: filters applied from insight toasts sit on top of the learnt order.
+  const filters = useDeckFilters(projectId);
+  const ranked = useMemo(() => {
+    const decided = new Set(decisions.map((d) => d.paperId));
+    const idsOf = (i: DeckItem) => featureIds.get(i.paper.id) ?? [];
+    return applyDeckFilters(
+      rankItems(
+        items.filter((i) => !decided.has(i.paper.id)),
+        idsOf,
+        history,
+      ),
+      idsOf,
+      toDeckFilters(filters.active),
     );
-  }, [items, featureIds, decisions, initialHistory]);
+  }, [items, featureIds, decisions, history, filters.active]);
+
+  // RK-03: after enough swipes, offer one clear pattern as a toast with a one-tap filter.
+  const offered = useRef(new Set<string>());
+  const lastInsightAt = useRef(-Infinity);
+  const { add: addFilter, remove: removeFilter } = filters;
+  useEffect(() => {
+    if (decisions.length - lastInsightAt.current < INSIGHT_GAP) return;
+    const skip = new Set([...offered.current, ...filters.active.map((f) => f.id)]);
+    const upcoming = ranked.map((i) => features.get(i.paper.id) ?? []);
+    const insight = findInsight(history, upcoming, { offered: skip });
+    if (!insight) return;
+    offered.current.add(insight.feature.id);
+    lastInsightAt.current = decisions.length;
+
+    const filter: ActiveFilter = {
+      id: insight.feature.id,
+      phrase: featurePhrase(insight.feature),
+      mode: insight.direction === "skip" ? "hide" : "boost",
+    };
+    void insightSentence(projectId, insight).then((sentence) => {
+      toast.info(sentence, {
+        id: INSIGHT_TOAST_ID,
+        position: TOAST_POSITION,
+        // Stays until handled: keyboard and screen-reader users need time to reach the action.
+        duration: Infinity,
+        actionButtonStyle: TOAST_BUTTON_STYLE,
+        cancelButtonStyle: TOAST_BUTTON_STYLE,
+        cancel: { label: "Not now", onClick: () => {} },
+        action: {
+          label: filter.mode === "hide" ? "Hide them" : "Show these first",
+          onClick: () => {
+            addFilter(filter);
+            toast.success(
+              filter.mode === "hide"
+                ? `Hiding ${filter.phrase}.`
+                : `Showing ${filter.phrase} first.`,
+              {
+                id: INSIGHT_TOAST_ID,
+                position: TOAST_POSITION,
+                actionButtonStyle: TOAST_BUTTON_STYLE,
+                action: { label: "Undo", onClick: () => removeFilter(filter.id) },
+              },
+            );
+          },
+        },
+      });
+    });
+  }, [
+    decisions.length,
+    history,
+    ranked,
+    features,
+    filters.active,
+    projectId,
+    addFilter,
+    removeFilter,
+  ]);
 
   const deck = useRef<SwipeDeckHandle>(null);
   // Start over: only offered once you've swiped here (this visit or before).
@@ -261,6 +375,7 @@ export function PersistedSwipeDeck({
   return (
     <>
       <VoiceControl onCommand={onVoice} />
+      <FilterChips active={filters.active} onRemove={removeFilter} />
       <SwipeDeck
         ref={deck}
         items={ranked}
@@ -326,5 +441,43 @@ export function PersistedSwipeDeck({
         onFocusDeck={() => deck.current?.focus()}
       />
     </>
+  );
+}
+
+/** RK-03: what the insight filters are doing to the deck, each with a way to undo it. */
+function FilterChips({
+  active,
+  onRemove,
+}: {
+  active: ActiveFilter[];
+  onRemove: (id: string) => void;
+}) {
+  if (!active.length) return null;
+  return (
+    <ul aria-label="Deck filters" className="flex flex-wrap gap-2">
+      {active.map((filter) => {
+        const text = filter.mode === "hide" ? `Hiding ${filter.phrase}` : `${filter.phrase} first`;
+        return (
+          <li
+            key={filter.id}
+            className="inline-flex items-center gap-1 rounded-full border border-border bg-card py-0.5 pr-0.5 pl-3 text-sm text-foreground hc:border-2"
+          >
+            <span className="first-letter:uppercase">{text}</span>
+            <button
+              type="button"
+              onClick={() => onRemove(filter.id)}
+              className="relative inline-flex size-8 items-center justify-center rounded-full text-muted-foreground after:absolute after:-inset-1.5 after:content-[''] hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card focus-visible:outline-hidden"
+            >
+              <X className="size-4" strokeWidth={1.75} aria-hidden />
+              <span className="sr-only">
+                {filter.mode === "hide"
+                  ? `Show ${filter.phrase} again`
+                  : `Stop showing ${filter.phrase} first`}
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
