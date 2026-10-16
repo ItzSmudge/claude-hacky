@@ -1,5 +1,13 @@
 export { extractFeatures, type FeatureKind, type PaperFeature } from "./features";
-export { combineWeights, keepHead } from "./group";
+export {
+  applyTeamChange,
+  combineWeights,
+  keepHead,
+  teamDecisionsFrom,
+  teamSwipeChange,
+  type TeamDecisions,
+  type TeamSwipeChange,
+} from "./group";
 export {
   featureIdf,
   learnWeights,

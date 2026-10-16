@@ -1,3 +1,5 @@
+import { z } from "zod";
+import type { SwipeDecision } from "@/types/domain";
 import { learnWeights, type SwipeSample, type Weights } from "./weights";
 
 /**
@@ -44,4 +46,57 @@ export function keepHead<T>(
   });
   const pinned = new Set(head.map(key));
   return [...head, ...next.filter((item) => !pinned.has(key(item)))];
+}
+
+/** Each teammate's decisions by paper, in the order they first swiped it. */
+export type TeamDecisions = Map<string, Map<string, SwipeDecision>>;
+
+/** One teammate's swipe arriving live; `decision: null` means they took it back. */
+export interface TeamSwipeChange {
+  userId: string;
+  paperId: string;
+  decision: SwipeDecision | null;
+}
+
+/** Teammates' swipes as loaded with the page, oldest first. */
+export function teamDecisionsFrom(
+  rows: { userId: string; paperId: string; decision: SwipeDecision }[],
+): TeamDecisions {
+  return rows.reduce<TeamDecisions>((team, row) => applyTeamChange(team, row), new Map());
+}
+
+const swipeKey = z.object({ project_id: z.string(), paper_id: z.string(), user_id: z.string() });
+const changePayload = z.discriminatedUnion("eventType", [
+  z.object({ eventType: z.literal("DELETE"), old: swipeKey }),
+  z.object({
+    eventType: z.enum(["INSERT", "UPDATE"]),
+    new: swipeKey.extend({ decision: z.enum(["save", "skip"]) }),
+  }),
+]);
+
+/**
+ * A Realtime change on `swipes` → the teammate's swipe it represents, or null (mine, another
+ * project's, malformed). An undo's DELETE carries only the primary key, which is all we need.
+ */
+export function teamSwipeChange(
+  payload: unknown,
+  { projectId, me }: { projectId: string; me: string },
+): TeamSwipeChange | null {
+  const parsed = changePayload.safeParse(payload);
+  if (!parsed.success) return null;
+  const row = parsed.data.eventType === "DELETE" ? parsed.data.old : parsed.data.new;
+  if (row.project_id !== projectId || row.user_id === me) return null;
+  const decision = parsed.data.eventType === "DELETE" ? null : parsed.data.new.decision;
+  return { userId: row.user_id, paperId: row.paper_id, decision };
+}
+
+/** A new map with the change applied: a changed mind keeps its place, an undo drops it. */
+export function applyTeamChange(team: TeamDecisions, change: TeamSwipeChange): TeamDecisions {
+  const next = new Map(team);
+  const papers = new Map(team.get(change.userId));
+  if (change.decision) papers.set(change.paperId, change.decision);
+  else papers.delete(change.paperId);
+  if (papers.size) next.set(change.userId, papers);
+  else next.delete(change.userId);
+  return next;
 }
