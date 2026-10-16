@@ -1,11 +1,12 @@
 /**
- * Semantic Scholar paper search (SE-02). Every bibliographic field is copied from S2; papers we
- * can't cite safely (no id or title) are dropped rather than patched up. S2's one-line TLDR is
- * the reason to call it at all: SE-03 merges these with OpenAlex results.
+ * Semantic Scholar paper search (SE-02) and DOI batch lookup (SE-03). Every bibliographic field
+ * is copied from S2; papers we can't cite safely (no id or title) are dropped rather than patched
+ * up. S2's one-line TLDR is the reason to call it at all: SE-03 adds it to OpenAlex results.
  */
 import { z } from "zod";
 import { normaliseDoi } from "@/lib/export/doi";
 import type { Paper } from "@/types/domain";
+import type { S2Enrichment } from "./merge";
 import type { OpenAlexSearchResult } from "./openalex";
 
 type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
@@ -271,6 +272,107 @@ export async function searchSemanticScholar(
       total,
       nextPage: page * perPage < Math.min(total, MAX_RESULTS) ? page + 1 : null,
     };
+  }
+  throw last;
+}
+
+const BATCH_API = "https://api.semanticscholar.org/graph/v1/paper/batch?fields=tldr,abstract";
+// SE-03 runs the lookup inside a 3 s budget, so it gets one short retry, not search's two.
+const BATCH_BACKOFF_MS = [500];
+const BATCH_MAX_RETRY_AFTER_MS = 2_000;
+
+// One entry per requested id, in order; `null` when S2 doesn't know the paper.
+const batchSchema = z.array(z.union([z.null(), z.record(z.string(), z.unknown())]));
+
+/**
+ * TLDR and abstract for each DOI S2 knows, keyed by lowercase DOI. Results are matched by
+ * position, not by any DOI S2 echoes back. Throws `SemanticScholarError`; callers enriching
+ * search results treat any failure as "no enrichment".
+ */
+export async function lookupSemanticScholarByDoi(
+  dois: string[],
+  { fetch = globalThis.fetch, apiKey, signal, sleep = defaultSleep }: SemanticScholarDeps = {},
+): Promise<Map<string, S2Enrichment>> {
+  const ids = [
+    ...new Set(dois.map((d) => normaliseDoi(d)?.toLowerCase()).filter((d): d is string => !!d)),
+  ];
+  const found = new Map<string, S2Enrichment>();
+  if (!ids.length) return found;
+  const headers: Record<string, string> = {
+    accept: "application/json",
+    "content-type": "application/json",
+  };
+  if (apiKey) headers["x-api-key"] = apiKey;
+  const body = JSON.stringify({ ids: ids.map((doi) => `DOI:${doi}`) });
+
+  let last = new SemanticScholarError("Semantic Scholar batch failed", 0, true);
+  let retryAfter: number | undefined;
+  for (let attempt = 0; attempt <= BATCH_BACKOFF_MS.length; attempt++) {
+    if (signal?.aborted) throw aborted();
+    if (attempt > 0) {
+      await sleep(
+        Math.min(retryAfter ?? BATCH_BACKOFF_MS[attempt - 1]!, BATCH_MAX_RETRY_AFTER_MS),
+        signal,
+      );
+      if (signal?.aborted) throw aborted();
+    }
+
+    let res: Response;
+    let text: string;
+    try {
+      const timeout = AbortSignal.timeout(TIMEOUT_MS);
+      res = await fetch(BATCH_API, {
+        method: "POST",
+        headers,
+        body,
+        signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      });
+      if (res.status === 429 || res.status >= 500) {
+        last = new SemanticScholarError(
+          `Semantic Scholar responded ${res.status}`,
+          res.status,
+          true,
+        );
+        retryAfter = retryAfterMs(res);
+        await res.body?.cancel().catch(() => {});
+        continue;
+      }
+      if (!res.ok) {
+        await res.body?.cancel().catch(() => {});
+        throw new SemanticScholarError(
+          `Semantic Scholar responded ${res.status}`,
+          res.status,
+          false,
+        );
+      }
+      text = await res.text();
+    } catch (err) {
+      if (err instanceof SemanticScholarError) throw err;
+      if (signal?.aborted) throw aborted();
+      last = new SemanticScholarError("Semantic Scholar unreachable", 0, true);
+      retryAfter = undefined;
+      continue;
+    }
+
+    let json: unknown = null;
+    try {
+      json = JSON.parse(text);
+    } catch {}
+    const parsed = batchSchema.safeParse(json);
+    if (!parsed.success || parsed.data.length !== ids.length) {
+      throw new SemanticScholarError("Semantic Scholar returned a malformed batch", 502, false);
+    }
+    parsed.data.forEach((entry, i) => {
+      if (!entry) return;
+      const tldrText = (entry.tldr as { text?: unknown } | null | undefined)?.text;
+      const tldr = typeof tldrText === "string" ? nonEmpty(tldrText) : undefined;
+      const abstract = typeof entry.abstract === "string" ? nonEmpty(entry.abstract) : undefined;
+      const extra: S2Enrichment = {};
+      if (tldr) extra.tldr = tldr;
+      if (abstract) extra.abstract = abstract;
+      found.set(ids[i]!, extra);
+    });
+    return found;
   }
   throw last;
 }

@@ -38,6 +38,11 @@ export function matchesExcluded(paper: Paper, terms: string[] | RegExp[]): boole
 
 export interface SearchDeps {
   search: (params: OpenAlexSearchParams) => Promise<OpenAlexSearchResult>;
+  /**
+   * Best-effort extras for the page (SE-03: S2 TLDRs). Must return the same papers in the same
+   * order; anything else, or a rejection, leaves the page unenriched.
+   */
+  enrich?: (papers: Paper[]) => Promise<Paper[]>;
   /** Upserts papers into the shared cache; swipes reference `papers`, so this must run. */
   cache?: (papers: Paper[]) => Promise<void>;
   now?: Date;
@@ -45,7 +50,7 @@ export interface SearchDeps {
 
 export async function searchPapers(
   request: SearchRequest,
-  { search, cache, now = new Date() }: SearchDeps,
+  { search, enrich, cache, now = new Date() }: SearchDeps,
 ): Promise<SearchResponse> {
   const { papers, nextPage } = await search({
     q: request.q,
@@ -55,7 +60,21 @@ export async function searchPapers(
     perPage: request.perPage,
   });
   const exclude = (request.exclude ?? []).map(wholeWord);
-  const kept = papers.filter((paper) => !matchesExcluded(paper, exclude));
+  let kept = papers.filter((paper) => !matchesExcluded(paper, exclude));
+
+  if (enrich && kept.length) {
+    try {
+      const enriched = await enrich(kept);
+      if (enriched.length !== kept.length) throw new Error("enrichment changed the page size");
+      // An abstract S2 filled in hasn't been checked against the exclude terms yet.
+      kept = enriched.filter((paper) => !matchesExcluded(paper, exclude));
+    } catch (error) {
+      console.warn(
+        "[search] s2 enrichment skipped:",
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
 
   if (cache && kept.length) {
     try {

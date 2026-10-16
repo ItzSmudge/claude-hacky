@@ -9,6 +9,7 @@ import {
   useTransform,
   type PanInfo,
 } from "motion/react";
+import { RotateCcw } from "lucide-react";
 import Link from "next/link";
 import {
   useEffect,
@@ -52,6 +53,12 @@ export interface SwipeDeckHandle {
   decide: (paperId: string, decision: SwipeDecision) => boolean;
   /** Focuses the deck region (e.g. after a sheet closes with nowhere better to return to). */
   focus: () => void;
+  /** The top card's paper id, or null when the deck is empty (AX-03 voice commands). */
+  topId: () => string | null;
+  /** Same as the Undo button / Z key; false when there's nothing to undo. */
+  undo: () => boolean;
+  /** Same as the Details button / up arrow. */
+  details: () => void;
 }
 
 export interface DeckItem {
@@ -108,6 +115,7 @@ export function SwipeDeck({
   onEmpty,
   loading = false,
   onLoadMore,
+  onStartOver,
   libraryHref,
   className,
   ref,
@@ -121,6 +129,8 @@ export function SwipeDeck({
   onEmpty?: () => void;
   loading?: boolean;
   onLoadMore?: () => void;
+  /** Shown at the end when you've swiped here before: clears your swipes so you can go again. */
+  onStartOver?: () => void;
   libraryHref?: string;
   className?: string;
 }) {
@@ -307,6 +317,13 @@ export function SwipeDeck({
       return true;
     },
     focus: () => regionRef.current?.focus(),
+    topId: () => topId,
+    undo: () => {
+      if (!canUndo(deck) || busy.current) return false;
+      undo();
+      return true;
+    },
+    details: () => details(),
   }));
 
   // WCAG 2.4.11: browsers don't scroll a focused control that's "visible" but under the sticky bar.
@@ -507,12 +524,26 @@ export function SwipeDeck({
         ) : (
           <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card p-8 text-center shadow-paper">
             <p className="font-display text-xl font-semibold text-primary">
-              {total === 0 ? "No papers to swipe yet." : "You've been through every paper."}
+              {total === 0 && !onStartOver
+                ? "No papers to swipe yet."
+                : "You've been through every paper."}
             </p>
-            {total > 0 && (
+            {total > 0 ? (
               <p className="text-muted-foreground">
                 Undo to revisit the last one{libraryHref ? ", or open your library." : "."}
               </p>
+            ) : (
+              onStartOver && (
+                <p className="text-muted-foreground">
+                  Your saves are in your library. Start over to swipe them all again.
+                </p>
+              )
+            )}
+            {onStartOver && (
+              <Button variant="secondary" className="min-h-11" onClick={onStartOver}>
+                <RotateCcw className="size-4" strokeWidth={1.75} aria-hidden />
+                Start over
+              </Button>
             )}
             {onLoadMore && (
               <Button

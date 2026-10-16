@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { searchRequestSchema, type ApiError, type SearchResponse } from "@/lib/api-schemas";
-import { OpenAlexError, searchOpenAlex } from "@/lib/scholar";
+import {
+  OpenAlexError,
+  enrichPapers,
+  lookupSemanticScholarByDoi,
+  searchOpenAlex,
+} from "@/lib/scholar";
 import { cachePapers } from "@/lib/scholar/cache";
 import { parseExcludeTerms, searchPapers } from "@/lib/scholar/search";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -10,6 +15,8 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 /** Upper bound on one search, including OpenAlex retries; the deck shows an error after. */
 const DEADLINE_MS = 15_000;
+/** S2 TLDR enrichment (SE-03) is best effort: past this the page goes out without it. */
+const ENRICH_BUDGET_MS = 3_000;
 
 const error = (status: number, message: string, details?: unknown, headers?: HeadersInit) =>
   NextResponse.json<ApiError>(
@@ -39,6 +46,15 @@ export async function GET(request: Request) {
   try {
     const response = await searchPapers(parsed.data, {
       search: (query) => searchOpenAlex(query, { signal }),
+      enrich: async (papers) =>
+        enrichPapers(
+          papers,
+          await lookupSemanticScholarByDoi(
+            papers.flatMap((p) => (p.doi ? [p.doi] : [])),
+            // Budget starts when enrichment does, not when the request did.
+            { signal: AbortSignal.any([signal, AbortSignal.timeout(ENRICH_BUDGET_MS)]) },
+          ),
+        ),
       cache: cachePapers,
     });
     return NextResponse.json<SearchResponse>(response);
