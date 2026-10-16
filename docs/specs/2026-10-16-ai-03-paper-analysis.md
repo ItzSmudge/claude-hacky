@@ -39,7 +39,7 @@ analysePaper({ paper, projectId, context, signal? }, ask = askJson)
    - Choose `useAs` from the definitions given.
    - Score relevance on a rubric (90+ directly tests a claim … under 30 off-topic).
    - Write plain UK English for a student.
-3. **Call.** `askJson({ tier: "fast", schema, system, messages, cacheSystem: true, maxTokens: 2_000, signal })`. AI-01 handles zod validation and the one repair.
+3. **Call.** `askJson({ tier: "fast", schema, system, messages, cacheSystem: true, effort: "low", maxTokens: 8_000, signal })`. AI-01 handles zod validation and the one repair.
 4. **Finalise (code, not model).**
    - Attach `paperId` and `projectId`.
    - Drop stances whose `claimId` isn't in the context ("unknown ids are discarded"), and keep the first stance per claim id.

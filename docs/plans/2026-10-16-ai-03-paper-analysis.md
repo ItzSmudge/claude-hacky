@@ -41,7 +41,7 @@
     - rounds relevance;
     - parses the result with `paperAnalysisSchema`.
 - [ ] **4. `analysePaper` (TDD with `./client` mocked).**
-  - Calls `askJson` with `tier: "fast"`, `cacheSystem: true`, `maxTokens: 2000` and the signal.
+  - Calls `askJson` with `tier: "fast"`, `cacheSystem: true`, `effort: "low"`, `maxTokens: 8000` and the signal.
   - Returns `{ analysis, usage, repaired }`. Errors propagate.
   - Export it from `index.ts`.
 - [ ] **5. Live smoke (only if `ANTHROPIC_API_KEY` is set).**
