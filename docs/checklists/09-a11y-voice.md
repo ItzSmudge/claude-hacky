@@ -5,7 +5,7 @@
 **Depends on:** SW-02 for deck work
 **Can start with fixtures?** Yes
 
-- [ ] AX-01 ⚡ Keyboard + screen-reader pass on deck (aria-live announcements of save/skip, focus management)
+- [~] @Claude ccr-4f51b2be-ref8h1 AX-01 ⚡ Keyboard + screen-reader pass on deck (aria-live announcements of save/skip, focus management)
 - [ ] AX-02 ⚡ Read-aloud: Web Speech `speechSynthesis` for overview/abstract, rate control
 - [ ] AX-03 Voice commands (`SpeechRecognition` where supported): "save", "skip", "read", "why does it matter"
 - [ ] AX-04 High-contrast / large-text toggle (`.hc` tokens already exist in `globals.css`)
