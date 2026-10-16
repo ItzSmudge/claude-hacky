@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense, ViewTransition } from "react";
 import { z } from "zod";
+import { GroupMembers } from "@/components/group/group-members";
 import { GroupReadingList } from "@/components/group/group-reading-list";
 import { memberLabels } from "@/components/group/group-list";
 import { loadGroup } from "@/components/group/load-group";
@@ -64,6 +65,15 @@ async function Group({ params }: Pick<PageProps<"/app/p/[projectId]/group">, "pa
   return (
     <>
       {heading}
+      <GroupMembers
+        projectId={projectId}
+        me={me}
+        members={members.map((m, i) => ({
+          userId: m.userId,
+          name: m.displayName?.trim() || `Member ${i + 1}`,
+          role: m.role,
+        }))}
+      />
       <GroupReadingList
         projectId={projectId}
         me={me}
