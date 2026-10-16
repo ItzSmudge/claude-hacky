@@ -99,9 +99,14 @@ export function buildPaperAnalysisPrompt(
   };
 }
 
+// "Not stated.", "N/A", "None stated" → the exact marker, so the UI can detect missing info.
+const MISSING = /^(not stated|none stated|n\/a|unknown)\.?$/i;
+const marker = (text: string) => (MISSING.test(text.trim()) ? NOT_STATED : text);
+
 /**
  * Pure. Attaches ids, keeps one stance per known claim in the brief's order (unknown ids are
- * discarded, skipped claims become unclear / not stated), and checks the frozen contract.
+ * discarded, skipped claims become unclear / not stated; an unclear stance carries no note),
+ * normalises "not stated" variants, and checks the frozen contract.
  */
 export function finalisePaperAnalysis(
   output: PaperAnalysisOutput,
@@ -111,15 +116,21 @@ export function finalisePaperAnalysis(
   for (const stance of output.stances)
     if (!byClaim.has(stance.claimId)) byClaim.set(stance.claimId, stance);
 
-  const stances = context.claims.map(
-    ({ id }) => byClaim.get(id) ?? { claimId: id, stance: "unclear" as const, note: NOT_STATED },
-  );
+  const stances = context.claims.map(({ id }) => {
+    const found = byClaim.get(id);
+    if (!found || found.stance === "unclear")
+      return { claimId: id, stance: "unclear" as const, note: NOT_STATED };
+    return { ...found, note: marker(found.note) };
+  });
 
   return paperAnalysisSchema.parse({
     ...output,
+    overview: marker(output.overview),
+    whyItMatters: marker(output.whyItMatters),
+    methodology: marker(output.methodology),
+    limitations: marker(output.limitations),
     paperId,
     projectId,
-    relevance: Math.round(output.relevance),
     stances,
   });
 }

@@ -28,6 +28,11 @@ describe("words", () => {
     expect(result.error?.issues[0]?.message).toBe("Use at most 2 words (got 3).");
   });
 
+  it("allows links unless noLinks is set", () => {
+    expect(words(10).safeParse("Data from www.ons.gov.uk").success).toBe(true);
+    expect(words(10, { noLinks: true }).safeParse("Data from www.ons.gov.uk").success).toBe(false);
+  });
+
   it("rejects empty text", () => {
     expect(words(5).safeParse("   ").success).toBe(false);
   });

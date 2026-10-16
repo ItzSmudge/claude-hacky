@@ -12,16 +12,17 @@ export const NOT_STATED = "not stated";
 
 export const countWords = (text: string) => text.split(/\s+/).filter(Boolean).length;
 
-// Links and DOIs are rendered by code from scholar APIs, never written by the model (CLAUDE.md).
+// Links and DOIs about papers are rendered by code from scholar APIs, never written by the model
+// (CLAUDE.md). Opt-in, because other outputs (e.g. a parsed brief) may legitimately quote one.
 const LINK = /\bhttps?:\/\/|\bwww\.\S/i;
 const DOI = /\b10\.\d{4,9}\/\S/;
 
 /**
- * Non-empty text of at most `max` words, with no links or DOIs. JSON Schema can't express a word
- * count, so zod enforces it and the description tells the model the limit up front (avoiding a
- * repair call).
+ * Non-empty text of at most `max` words (and, with `noLinks`, no URLs or DOIs). JSON Schema can't
+ * express a word count, so zod enforces it and the description tells the model the limit up
+ * front (avoiding a repair call).
  */
-export const words = (max: number) =>
+export const words = (max: number, { noLinks = false }: { noLinks?: boolean } = {}) =>
   z
     .string()
     .trim()
@@ -30,14 +31,14 @@ export const words = (max: number) =>
       const n = countWords(text);
       if (n > max)
         ctx.addIssue({ code: "custom", message: `Use at most ${max} words (got ${n}).` });
-      if (LINK.test(text) || DOI.test(text))
+      if (noLinks && (LINK.test(text) || DOI.test(text)))
         ctx.addIssue({ code: "custom", message: "Do not include links or DOIs." });
     })
     .describe(`At most ${max} words.`);
 
 /** Like `words`, but tells the model to write "not stated" when the source is silent. */
-export const notStated = (max: number) =>
-  words(max).describe(
+export const notStated = (max: number, options?: { noLinks?: boolean }) =>
+  words(max, options).describe(
     `At most ${max} words, or exactly "${NOT_STATED}" if the source does not say.`,
   );
 
@@ -45,28 +46,31 @@ export const notStated = (max: number) =>
  * AI-03: what the FAST model returns for one paper. Code adds paperId/projectId and cleans up
  * stances (see `finalisePaperAnalysis`); nothing bibliographic is generated.
  */
+const card = { noLinks: true };
 export const paperAnalysisOutputSchema = z.object({
-  overview: notStated(35).describe(
+  overview: notStated(35, card).describe(
     `Plain-language summary of the abstract in at most 35 words, or exactly "${NOT_STATED}" if there is no abstract.`,
   ),
-  whyItMatters: notStated(20).describe(
+  whyItMatters: notStated(20, card).describe(
     `One line, at most 20 words: why this paper matters for the student's brief, or "${NOT_STATED}".`,
   ),
   relevance: z.int().min(0).max(100).describe("Relevance to the brief, 0–100, per the rubric."),
-  relevanceReason: words(8).describe("At most 8 words: the main reason for the relevance score."),
+  relevanceReason: words(8, card).describe(
+    "At most 8 words: the main reason for the relevance score.",
+  ),
   stances: z
     .array(
       z.object({
         claimId: z.string().describe("A claim id from the project context, e.g. c1."),
         stance: stanceSchema,
-        note: notStated(12).describe(
+        note: notStated(12, card).describe(
           `At most 12 words of evidence from the abstract, or exactly "${NOT_STATED}".`,
         ),
       }),
     )
     .describe("Exactly one entry per claim id in the project context."),
-  methodology: notStated(15),
-  limitations: notStated(15),
+  methodology: notStated(15, card),
+  limitations: notStated(15, card),
   useAs: useAsSchema,
 });
 export type PaperAnalysisOutput = z.infer<typeof paperAnalysisOutputSchema>;

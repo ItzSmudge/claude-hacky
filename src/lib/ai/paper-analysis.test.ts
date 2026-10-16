@@ -140,6 +140,28 @@ describe("finalisePaperAnalysis", () => {
     ]);
   });
 
+  it("normalises not-stated variants and clears notes on unclear stances", () => {
+    const result = finalisePaperAnalysis(
+      output({
+        limitations: "Not stated.",
+        methodology: "N/A",
+        stances: [
+          { claimId: "c1", stance: "unclear", note: "Abstract is silent on this" },
+          { claimId: "c2", stance: "supports", note: "not stated." },
+          { claimId: "c3", stance: "neutral", note: "Mixed results" },
+        ],
+      }),
+      ids,
+    );
+    expect(result.limitations).toBe("not stated");
+    expect(result.methodology).toBe("not stated");
+    expect(result.stances.map((s) => s.note)).toEqual([
+      "not stated",
+      "not stated",
+      "Mixed results",
+    ]);
+  });
+
   it("returns no stances when the brief has no claims", () => {
     const result = finalisePaperAnalysis(output(), { ...ids, context: { ...context, claims: [] } });
     expect(result.stances).toEqual([]);
