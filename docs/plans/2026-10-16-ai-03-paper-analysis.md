@@ -13,7 +13,7 @@
 
 ## Tasks
 
-- [ ] **1. Output schema (TDD), `schemas.ts`.**
+- [x] **1. Output schema (TDD), `schemas.ts`.**
   - Add `refFree()`, a refinement that rejects URLs and DOIs, and `paperAnalysisOutputSchema` with the spec's limits.
   - Tests:
     - all 20 fixture analyses (minus ids) parse;
@@ -21,7 +21,7 @@
     - word-limit descriptions survive in the JSON schema;
     - `betaZodOutputFormat` builds.
   - Check: `pnpm test src/lib/ai`.
-- [ ] **2. Prompt builder (TDD), `paper-analysis.ts`.**
+- [x] **2. Prompt builder (TDD), `paper-analysis.ts`.**
   - `buildPaperAnalysisPrompt(context, paper)` returns `{ system: [instructions, context], messages: [user <paper>] }`.
   - Deterministic text with no timestamps, so the cache prefix stays stable.
   - Strips `<paper>` tags from paper text.
@@ -32,7 +32,7 @@
     - a missing abstract gives the "No abstract" line;
     - no claims gives no claims section;
     - the same context gives an identical system prompt for two papers.
-- [ ] **3. Finalise (TDD).**
+- [x] **3. Finalise (TDD).**
   - `finalisePaperAnalysis(raw, { paperId, projectId, context })`:
     - drops unknown ids;
     - keeps the first duplicate;
@@ -40,12 +40,12 @@
     - orders stances as the context lists claims;
     - rounds relevance;
     - parses the result with `paperAnalysisSchema`.
-- [ ] **4. `analysePaper` (TDD with `./client` mocked).**
+- [x] **4. `analysePaper` (TDD with `./client` mocked).**
   - Calls `askJson` with `tier: "fast"`, `cacheSystem: true`, `effort: "low"`, `maxTokens: 8000` and the signal.
   - Returns `{ analysis, usage, repaired }`. Errors propagate.
   - Export it from `index.ts`.
 - [ ] **5. Live smoke (only if `ANTHROPIC_API_KEY` is set).**
   - `scripts/ai-analyse-smoke.ts` runs 3 fixture papers through `analysePaper` and prints `cache_read_input_tokens` on papers 2–3.
-- [ ] **6. Review + ship.**
+- [x] **6. Review + ship.**
   - `pr-reviewer` subagent, then `pnpm check && pnpm build`.
   - `/ship-pr`, which ticks AI-03.
