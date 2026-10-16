@@ -41,6 +41,12 @@ export function GroupReadingList({
 }) {
   const router = useRouter();
   const [votes, setVotes] = useState(initialVotes);
+  // A refresh brings teammates' new votes: take them over the local (optimistic) copy.
+  const [seen, setSeen] = useState(initialVotes);
+  if (seen !== initialVotes) {
+    setSeen(initialVotes);
+    setVotes(initialVotes);
+  }
   const [pending, setPending] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const headings = useRef(new Map<string, HTMLHeadingElement>());
@@ -129,7 +135,7 @@ export function GroupReadingList({
               else headings.current.delete(paper.paperId);
             }}
             tabIndex={-1}
-            className="rounded font-display text-lg leading-snug font-semibold text-primary outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+            className="rounded font-display text-lg leading-snug font-semibold text-primary outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
           >
             {view.title}
           </h3>
@@ -158,7 +164,7 @@ export function GroupReadingList({
                 />
               </div>
             )}
-            <ul aria-label="Votes" className="flex flex-wrap gap-1.5">
+            <ul role="list" aria-label="Votes" className="flex flex-wrap gap-1.5">
               {paper.voters.map(({ userId, decision }) => (
                 <li
                   key={userId}
@@ -242,7 +248,7 @@ export function GroupReadingList({
           <h2
             id="discuss-heading"
             tabIndex={-1}
-            className="flex items-center gap-2 font-display text-xl font-semibold text-primary outline-hidden"
+            className="flex items-center gap-2 rounded font-display text-xl font-semibold text-primary outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             <MessageCircleQuestion className="size-5" strokeWidth={1.75} aria-hidden />
             To discuss
@@ -251,7 +257,9 @@ export function GroupReadingList({
             Someone saved these and someone skipped them. Talk it over, then change your vote if
             you&apos;re convinced.
           </p>
-          <ul className="flex flex-col gap-4">{discuss.map((p) => card(p, true))}</ul>
+          <ul role="list" className="flex flex-col gap-4">
+            {discuss.map((p) => card(p, true))}
+          </ul>
         </section>
       )}
 
@@ -259,7 +267,7 @@ export function GroupReadingList({
         <h2
           id="picks-heading"
           tabIndex={-1}
-          className="font-display text-xl font-semibold text-primary outline-hidden"
+          className="rounded font-display text-xl font-semibold text-primary outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           Group picks
         </h2>
@@ -270,7 +278,9 @@ export function GroupReadingList({
               : "No paper has everyone's vote yet."}
           </p>
         ) : (
-          <ul className="flex flex-col gap-4">{picks.map((p) => card(p, false))}</ul>
+          <ul role="list" className="flex flex-col gap-4">
+            {picks.map((p) => card(p, false))}
+          </ul>
         )}
       </section>
     </div>

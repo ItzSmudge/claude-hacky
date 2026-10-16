@@ -179,8 +179,8 @@ export function InviteDialog({
         <p role="status" aria-live="polite" className="sr-only">
           {copied ? "Invite link copied" : ""}
         </p>
-        <p className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
-          {people}
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
+          <p>{people}</p>
           <Link
             href={groupHref}
             className={cn(
@@ -191,7 +191,7 @@ export function InviteDialog({
             <Users className="size-4" strokeWidth={1.75} aria-hidden />
             Group reading list
           </Link>
-        </p>
+        </div>
       </DialogContent>
     </Dialog>
   );

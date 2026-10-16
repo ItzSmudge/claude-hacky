@@ -14,7 +14,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 export const metadata: Metadata = { title: "Group reading list" };
 
 const LINK =
-  "rounded font-medium text-primary underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden";
+  "inline-flex min-h-11 items-center rounded font-medium text-primary underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden";
 
 // Owner: group (GR-03). Every member's saves in one list, with the papers the group disagrees on.
 export default function GroupPage({ params }: PageProps<"/app/p/[projectId]/group">) {
@@ -70,7 +70,7 @@ async function Group({ params }: Pick<PageProps<"/app/p/[projectId]/group">, "pa
       <header className="flex flex-col gap-1">
         {heading}
         <p className="text-muted-foreground">{title}</p>
-        <nav aria-label="This project" className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+        <nav aria-label="This project" className="flex flex-wrap gap-x-4 text-sm">
           <Link href={`/app/p/${projectId}`} className={LINK}>
             Back to swiping
           </Link>

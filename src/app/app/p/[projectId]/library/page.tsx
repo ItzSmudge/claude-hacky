@@ -69,7 +69,7 @@ async function Library({ params }: Pick<PageProps<"/app/p/[projectId]/library">,
         {/* GR-03 */}
         <Link
           href={`/app/p/${projectId}/group`}
-          className="self-start rounded text-sm font-medium text-primary underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden"
+          className="inline-flex min-h-11 items-center self-start rounded text-sm font-medium text-primary underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden"
         >
           See what the whole group saved
         </Link>
