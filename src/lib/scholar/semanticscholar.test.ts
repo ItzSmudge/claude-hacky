@@ -84,6 +84,24 @@ describe("s2PaperToPaper", () => {
   });
 });
 
+// Opt-in, hits the real API: S2_LIVE=1 node --env-file=.env.local node_modules/vitest/vitest.mjs run src/lib/scholar/semanticscholar.test.ts
+describe.skipIf(!process.env.S2_LIVE)("searchSemanticScholar (live)", () => {
+  it("returns valid papers, or a retryable 429 when the pool is busy", async () => {
+    try {
+      const res = await searchSemanticScholar(
+        { q: "social media adolescent mental health", yearFrom: 2018, yearTo: 2022, perPage: 5 },
+        { apiKey: process.env.SEMANTIC_SCHOLAR_API_KEY },
+      );
+      for (const paper of res.papers) paperSchema.parse(paper);
+      const first = res.papers[0];
+      console.log(`live: ${res.papers.length}/${res.total}`, first?.title, "| tldr:", first?.tldr);
+    } catch (err) {
+      expect(err).toMatchObject({ status: 429, retryable: true });
+      console.log("live: 429 after retries (no key or busy pool)");
+    }
+  }, 30_000);
+});
+
 describe("searchSemanticScholar", () => {
   const FIELDS =
     "paperId,externalIds,title,abstract,year,venue,publicationVenue,publicationTypes,authors,citationCount,openAccessPdf,tldr,url,fieldsOfStudy";
