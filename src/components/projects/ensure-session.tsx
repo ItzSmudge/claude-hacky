@@ -9,7 +9,8 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 // PR-03: reset this to null on sign-out if that ever happens without a full reload.
 let signingIn: Promise<boolean> | null = null;
 
-function ensureAnonymousSession(): Promise<boolean> {
+/** Resolves true if a new guest session was created, false if one already existed (or it failed). */
+export function ensureAnonymousSession(): Promise<boolean> {
   signingIn ??= (async () => {
     const supabase = getSupabaseBrowserClient();
     // getUser() asks the server, so a stale cookie can't make us skip sign-in.

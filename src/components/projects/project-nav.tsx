@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { OpenDemoButton } from "./open-demo-button";
 import type { ProjectListItem } from "./project-list";
 
 const RING =
@@ -40,14 +41,11 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 export function ProjectNav({
   projects,
   userId,
-  demoHref,
   onNavigate,
   onChanged,
 }: {
   projects: ProjectListItem[];
   userId: string | undefined;
-  /** Where the empty state's "Try the demo project" goes (passed in so no fixtures ship here). */
-  demoHref: string;
   /** Close the mobile sheet after following a link. */
   onNavigate?: () => void;
   /** Refetch after a rename/delete (the mobile sheet); the server list refreshes anyway. */
@@ -93,14 +91,8 @@ export function ProjectNav({
     return (
       <p ref={emptyRef} tabIndex={-1} className="px-3 text-sm text-muted-foreground outline-hidden">
         No projects yet.{" "}
-        <Link
-          href={demoHref}
-          onClick={onNavigate}
-          className={cn("rounded underline underline-offset-4", FOCUS_RING)}
-        >
-          Try the demo project
-        </Link>{" "}
-        to see how it works.
+        <OpenDemoButton variant="inline" onDone={onNavigate} className={FOCUS_RING} /> to see how it
+        works.
       </p>
     );
   }

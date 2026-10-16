@@ -6,13 +6,10 @@ import { MobileProjects } from "@/components/projects/mobile-projects";
 import { loadProjects } from "@/components/projects/project-list";
 import { ProjectNav } from "@/components/projects/project-nav";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
-import { fixtureProject } from "@/fixtures";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 // Owner: projects (PR-02: history sidebar + anonymous sign-in).
-
-const DEMO_HREF = `/app/p/${fixtureProject.id}`;
 export default function AppLayout({ children }: LayoutProps<"/app">) {
   return (
     <div className="flex min-h-full flex-1 flex-col">
@@ -71,7 +68,7 @@ async function Session() {
   return (
     <>
       <EnsureSession signedIn={!!userId} />
-      <MobileProjects userId={userId} demoHref={DEMO_HREF} />
+      <MobileProjects userId={userId} />
     </>
   );
 }
@@ -82,7 +79,7 @@ async function Sidebar() {
   if (!projects) {
     return <p className="px-3 text-sm text-muted-foreground">Couldn&apos;t load your projects.</p>;
   }
-  return <ProjectNav projects={projects} userId={userId} demoHref={DEMO_HREF} />;
+  return <ProjectNav projects={projects} userId={userId} />;
 }
 
 function SidebarSkeleton() {
