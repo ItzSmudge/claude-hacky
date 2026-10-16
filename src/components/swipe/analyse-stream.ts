@@ -4,6 +4,12 @@ import {
   type AnalyseStreamEvent,
 } from "@/lib/api-schemas";
 
+export class AnalyseError extends Error {
+  constructor(readonly status: number) {
+    super(`analyse failed: ${status}`);
+  }
+}
+
 export async function streamAnalyses(
   request: AnalyseRequest,
   onEvent: (event: AnalyseStreamEvent) => void,
@@ -15,7 +21,7 @@ export async function streamAnalyses(
     body: JSON.stringify(request),
     signal,
   });
-  if (!response.ok || !response.body) throw new Error(`analyse failed: ${response.status}`);
+  if (!response.ok || !response.body) throw new AnalyseError(response.status);
 
   const emit = (line: string) => {
     if (!line.trim()) return;

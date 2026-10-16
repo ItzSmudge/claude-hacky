@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { searchResponseSchema, type SearchResponse } from "@/lib/api-schemas";
 import type { PaperAnalysis } from "@/types/domain";
-import { streamAnalyses } from "./analyse-stream";
-import { AHEAD, idsToAnalyse } from "./queue-state";
+import { AnalyseError, streamAnalyses } from "./analyse-stream";
+import { idsToAnalyse, shouldAutoPage } from "./queue-state";
 import type { DeckItem } from "./swipe-deck";
+
+/** /api/search caps `q` at 300 chars (searchRequestSchema); project queries can be longer. */
+const MAX_QUERY = 300;
 
 type Candidate = SearchResponse["papers"][number];
 
@@ -26,6 +29,8 @@ export function usePaperQueue({
   const [nextPage, setNextPage] = useState<number | null>(1);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState(false);
+  const [analyseUnavailable, setAnalyseUnavailable] = useState(false);
+  const barrenPages = useRef(0);
   const inflight = useRef(new Set<string>());
   const fetchingPage = useRef(false);
   const abort = useRef<AbortController | null>(null);
@@ -44,7 +49,11 @@ export function usePaperQueue({
     setSearching(true);
     setSearchError(false);
     try {
-      const params = new URLSearchParams({ q: query, projectId, page: String(nextPage) });
+      const params = new URLSearchParams({
+        q: query.trim().slice(0, MAX_QUERY),
+        projectId,
+        page: String(nextPage),
+      });
       const response = await fetch(`/api/search?${params}`, { signal: abort.current?.signal });
       if (!response.ok) throw new Error(String(response.status));
       const data = searchResponseSchema.parse(await response.json());
@@ -66,13 +75,22 @@ export function usePaperQueue({
     [candidates, decidedIds, failed],
   );
 
-  // Prefetch the next page of results before the deck runs dry.
+  // Prefetch the next page before the deck runs dry, but not forever if nothing analyses.
   useEffect(() => {
-    if (undecided.length < AHEAD * 2 && nextPage !== null && !searchError) void loadMore();
-  }, [undecided.length, nextPage, searchError, loadMore]);
-
+    const page = {
+      undecided: undecided.length,
+      nextPage,
+      searchError,
+      analyseUnavailable,
+      barrenPages: barrenPages.current,
+    };
+    if (!shouldAutoPage(page)) return;
+    barrenPages.current += 1;
+    void loadMore();
+  }, [undecided.length, nextPage, searchError, loadMore, analyseUnavailable]);
   // Analyse the top card plus three behind it; results arrive one by one.
   useEffect(() => {
+    if (analyseUnavailable) return;
     const ids = idsToAnalyse({
       candidates,
       analysed: analyses,
@@ -91,6 +109,7 @@ export function usePaperQueue({
           { projectId, paperIds: ids },
           (event) => {
             if (event.type === "analysis") {
+              barrenPages.current = 0;
               settled.add(event.analysis.paperId);
               setAnalyses((a) => ({ ...a, [event.analysis.paperId]: event.analysis }));
             } else if (event.type === "error") {
@@ -100,8 +119,9 @@ export function usePaperQueue({
           },
           signal,
         );
-      } catch {
-        // fall through: anything unsettled is marked failed below
+      } catch (err) {
+        // 501 = AI-04 not built yet: stop asking and let the deck fall back to fixtures.
+        if (err instanceof AnalyseError && err.status === 501) setAnalyseUnavailable(true);
       } finally {
         if (!signal?.aborted) {
           const missing = ids.filter((id) => !settled.has(id));
@@ -111,7 +131,7 @@ export function usePaperQueue({
         bump();
       }
     })();
-  }, [candidates, analyses, failed, decidedIds, projectId]);
+  }, [candidates, analyses, failed, decidedIds, projectId, analyseUnavailable]);
 
   const items = useMemo<DeckItem[]>(
     () =>
@@ -127,9 +147,13 @@ export function usePaperQueue({
 
   return {
     items,
-    loading,
+    loading: loading && !analyseUnavailable,
+    analyseUnavailable,
     hasMore: nextPage !== null,
     searchError,
-    loadMore: () => void loadMore(),
+    loadMore: () => {
+      barrenPages.current = 0; // a tap on "Load more" is a deliberate retry
+      void loadMore();
+    },
   };
 }

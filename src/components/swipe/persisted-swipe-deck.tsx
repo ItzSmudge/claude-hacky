@@ -98,6 +98,7 @@ export function PersistedSwipeDeck({
   query,
   swipedIds,
   claims,
+  fallbackItems,
   libraryHref,
   initialHistory = NO_HISTORY,
   now,
@@ -112,6 +113,8 @@ export function PersistedSwipeDeck({
   /** Swipes from earlier visits (oldest first), so the learnt order survives a reload (RK-02). */
   initialHistory?: SwipeSample[];
   claims: ProjectContext["claims"];
+  /** Shown while /api/analyse isn't available yet (AI-04), so the demo deck never goes blank. */
+  fallbackItems?: DeckItem[];
   libraryHref?: string;
 }) {
   // RK-02: re-rank upcoming cards from this session's swipes (plus earlier ones). Undo pops.
@@ -123,7 +126,7 @@ export function PersistedSwipeDeck({
 
   // SW-04: fetch papers and analyse the next few before the user reaches them.
   const queue = usePaperQueue({ projectId, query, swipedIds, decidedIds });
-  const items = queue.items;
+  const items = queue.analyseUnavailable ? (fallbackItems ?? []) : queue.items;
 
   // Titles for failure toasts; kept for papers that later leave `items`.
   const titles = useRef(new Map<string, string>());
