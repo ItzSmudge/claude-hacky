@@ -1,6 +1,31 @@
 import { describe, expect, it } from "vitest";
 import type { Paper } from "@/types/domain";
 import { enrichPapers, keepCachedFields, type S2Enrichment } from "./merge";
+import { lookupSemanticScholarByDoi } from "./semanticscholar";
+
+// Opt-in, hits the real API: S2_LIVE=1 node --env-file=.env.local node_modules/vitest/vitest.mjs run src/lib/scholar/merge.test.ts
+describe.skipIf(!process.env.S2_LIVE)("S2 enrichment (live)", () => {
+  it("finds TLDRs for real DOIs, or reports a retryable 429", async () => {
+    const dois = [
+      "10.1016/j.chb.2020.106645",
+      "10.1038/s41586-021-03819-2",
+      "10.1001/jamapsychiatry.2019.2325",
+      "10.1016/j.eclinm.2018.12.005",
+      "10.1111/jcpp.13190",
+    ];
+    try {
+      const found = await lookupSemanticScholarByDoi(dois, {
+        apiKey: process.env.SEMANTIC_SCHOLAR_API_KEY,
+      });
+      const tldrs = [...found.values()].filter((e) => e.tldr).length;
+      console.log(`live: ${found.size}/${dois.length} found, ${tldrs} with tldr`);
+      expect(tldrs).toBeGreaterThanOrEqual(1);
+    } catch (err) {
+      expect(err).toMatchObject({ status: 429, retryable: true });
+      console.log("live: 429 after one retry (busy pool)");
+    }
+  }, 30_000);
+});
 
 const paper = (id: string, over: Partial<Paper> = {}): Paper =>
   Object.freeze({
