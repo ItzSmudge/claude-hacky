@@ -211,11 +211,13 @@ export async function searchOpenAlex(
   params: OpenAlexSearchParams,
   { fetch = globalThis.fetch, mailto, signal, sleep = defaultSleep }: OpenAlexDeps = {},
 ): Promise<OpenAlexSearchResult> {
-  if (!params.q.trim()) throw new OpenAlexError("Search query is empty", 400, false);
+  // `?` and `*` are wildcards, which OpenAlex rejects (400) in its default stemmed search.
+  const q = params.q.replace(/[?*]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!q) throw new OpenAlexError("Search query is empty", 400, false);
   const page = Math.max(1, Math.trunc(params.page ?? 1));
   const perPage = Math.min(MAX_PER_PAGE, Math.max(1, Math.trunc(params.perPage ?? 20)));
   const url = new URL(API);
-  url.searchParams.set("search", params.q);
+  url.searchParams.set("search", q);
   url.searchParams.set("page", String(page));
   url.searchParams.set("per-page", String(perPage));
   url.searchParams.set("select", SELECT);
