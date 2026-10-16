@@ -137,7 +137,9 @@ export function SavedPaperList({
           hint={USE_LABELS[key].hint}
           count={group.length}
         >
-          <ul className="flex flex-col gap-4">{group.map((item, i) => card(item, i))}</ul>
+          <ul role="list" className="flex flex-col gap-4">
+            {group.map((item, i) => card(item, i))}
+          </ul>
         </Section>
       ))}
     </div>
@@ -249,7 +251,9 @@ function StanceGroup({
         {label} <span className="text-muted-foreground">({children.length})</span>
       </h3>
       {children.length ? (
-        <ul className="flex flex-col gap-4">{children}</ul>
+        <ul role="list" className="flex flex-col gap-4">
+          {children}
+        </ul>
       ) : (
         <p className="text-sm text-muted-foreground">{empty}</p>
       )}

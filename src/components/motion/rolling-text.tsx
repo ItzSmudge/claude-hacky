@@ -7,13 +7,15 @@ const ROLL = { type: "tween", duration: 0.25, ease: "easeOut" } as const;
 
 /**
  * A short value (a count, "3 swiping") that rolls up when it changes: the new value slides in
- * from below as the old one leaves upwards. Instant under reduced motion. Purely visual: put the
- * accessible text next to it (sr-only) as the callers already do.
+ * from below as the old one leaves upwards. Instant under reduced motion. Purely visual (hidden
+ * from screen readers, which would read old and new values mid-roll): callers put the plain text
+ * next to it in an sr-only span.
  */
 export function RollingText({ value, className }: { value: string | number; className?: string }) {
   const reduceMotion = useReducedMotion() ?? false;
   return (
-    <span className={cn("inline-grid overflow-hidden", className)}>
+    // relative: popLayout positions the leaving value absolutely, so this box must clip it.
+    <span aria-hidden className={cn("relative inline-grid overflow-hidden", className)}>
       <AnimatePresence initial={false} mode="popLayout">
         <motion.span
           key={value}

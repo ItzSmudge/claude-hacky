@@ -47,7 +47,7 @@ export function DemoCardStack({ cards }: { cards: DemoCard[] }) {
   // The stack leans gently towards a mouse pointer (never touch, never under reduced motion).
   const px = useMotionValue(0);
   const py = useMotionValue(0);
-  const smooth = { stiffness: 150, damping: 20 };
+  const smooth = { stiffness: 150, damping: 26 }; // critically damped: no bounce
   const rotateY = useSpring(useTransform(px, [-0.5, 0.5], [-6, 6]), smooth);
   const rotateX = useSpring(useTransform(py, [-0.5, 0.5], [5, -5]), smooth);
   const lean = (event: PointerEvent<HTMLDivElement>) => {
@@ -148,7 +148,7 @@ function MiniCard({ card, stamp }: { card: DemoCard; stamp?: "save" | "skip" }) 
       <p className="line-clamp-3 font-display text-lg leading-snug font-semibold text-primary">
         {card.title}
       </p>
-      <p className="line-clamp-2 highlight-sweep rounded-xl px-3 py-2 text-sm font-medium text-highlight-foreground">
+      <p className="line-clamp-2 highlight-sweep rounded-xl px-3 py-2 text-sm font-medium text-highlight-foreground hc:border-2 hc:border-primary">
         {card.whyItMatters}
       </p>
       {stamp && (

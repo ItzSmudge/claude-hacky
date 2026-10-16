@@ -145,7 +145,7 @@ export function ProjectTabs({
                   />
                 )}
                 <Icon
-                  className="size-[18px] shrink-0 transition-transform duration-200 ease-out group-hover/tab:-translate-y-0.5 max-[359px]:hidden"
+                  className="size-[18px] shrink-0 transition-transform duration-200 ease-out motion-safe:group-hover/tab:-translate-y-0.5 max-[359px]:hidden"
                   strokeWidth={1.75}
                   aria-hidden
                 />

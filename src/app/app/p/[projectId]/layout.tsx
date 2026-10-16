@@ -1,5 +1,5 @@
 import { connection } from "next/server";
-import { cache, Suspense, ViewTransition } from "react";
+import { cache, Suspense } from "react";
 import { z } from "zod";
 import { ProjectInvite } from "@/components/group/project-invite";
 import { countSaved } from "@/components/projects/saved-count";
@@ -27,8 +27,8 @@ export default function ProjectLayout({ children, params }: LayoutProps<"/app/p/
           <Tabs params={params} />
         </Suspense>
       </header>
-      {/* Deck, Library and Group crossfade into each other (browsers without support just swap). */}
-      <ViewTransition>{children}</ViewTransition>
+      {/* Each page wraps itself in a <ViewTransition>, so tab switches crossfade (not refreshes). */}
+      {children}
     </div>
   );
 }
