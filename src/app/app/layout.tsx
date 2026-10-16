@@ -1,5 +1,6 @@
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { DisplaySettings } from "@/components/a11y/display-settings";
 import { Logo } from "@/components/brand/logo";
 import { EnsureSession } from "@/components/projects/ensure-session";
 import { MobileProjects } from "@/components/projects/mobile-projects";
@@ -26,7 +27,10 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
           </Suspense>
           <Logo href="/app" className="min-h-11" />
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-1">
+          <DisplaySettings />
+          <ThemeToggle />
+        </div>
       </header>
       <div className="flex flex-1">
         <div className="hidden w-72 shrink-0 flex-col gap-3 border-r border-border bg-sidebar p-4 text-sidebar-foreground md:flex">

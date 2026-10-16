@@ -111,7 +111,8 @@
   --shadow-paper-lg: 0 16px 40px -16px rgba(0, 0, 0, 0.6);
 }
 
-/* High-contrast (AX-04): pure white background is allowed only here. */
+/* High-contrast (AX-04): pure white/black backgrounds are allowed only here. Every token a
+   component can reach is set, so nothing from the base or .dark palette leaks through. */
 .hc {
   --background: #ffffff;
   --foreground: #011d1c;
@@ -119,13 +120,83 @@
   --card-foreground: #011d1c;
   --popover: #ffffff;
   --popover-foreground: #011d1c;
+  --primary: #035352;
+  --primary-foreground: #ffffff;
+  --secondary: #ffffff;
+  --secondary-foreground: #011d1c;
   --muted: #ffffff;
   --muted-foreground: #011d1c;
+  --accent: #d6ecea;
+  --accent-foreground: #011d1c;
+  --destructive: #8f3329;
   --border: #035352;
   --input: #035352;
   --ring: #035352;
   --highlight: #ffffff;
   --highlight-foreground: #011d1c;
+
+  --supports: #1f5c39;
+  --challenges: #8f3329;
+  --neutral: #3f423c;
+  --warning: #574716;
+  --info: #023f3e;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #011d1c;
+  --sidebar-primary: #035352;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #d6ecea;
+  --sidebar-accent-foreground: #011d1c;
+  --sidebar-border: #035352;
+  --sidebar-ring: #035352;
+
+  --shadow-paper: none;
+  --shadow-paper-lg: none;
+}
+
+/* High contrast in dark mode: cream and white on black. Without this, .hc's white background
+   met .dark's cream primary text. */
+.dark.hc {
+  --background: #000000;
+  --foreground: #ffffff;
+  --card: #000000;
+  --card-foreground: #ffffff;
+  --popover: #000000;
+  --popover-foreground: #ffffff;
+  --primary: #f3e8bc;
+  --primary-foreground: #000000;
+  --secondary: #000000;
+  --secondary-foreground: #ffffff;
+  --muted: #000000;
+  --muted-foreground: #ffffff;
+  --accent: #023f3e;
+  --accent-foreground: #ffffff;
+  --destructive: #f0a092;
+  --border: #f3e8bc;
+  --input: #f3e8bc;
+  --ring: #f3e8bc;
+  --highlight: #000000;
+  --highlight-foreground: #f3e8bc;
+
+  --supports: #8fd6ad;
+  --challenges: #f0a092;
+  --neutral: #d4d6cf;
+  --warning: #f3e8bc;
+  --info: #a9d6d3;
+
+  --sidebar: #000000;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #f3e8bc;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: #023f3e;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #f3e8bc;
+  --sidebar-ring: #f3e8bc;
+}
+
+/* Larger text (AX-04): everything is sized in rem, so this scales the whole UI. */
+html.text-large {
+  font-size: 118.75%;
 }
 
 @theme inline {
