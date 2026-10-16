@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Copy, Share2, UserPlus, X } from "lucide-react";
-import { useId, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -53,14 +53,18 @@ export function InviteDialog({
   const linkRef = useRef<HTMLInputElement>(null);
   const copyRef = useRef<HTMLButtonElement>(null);
   const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(copiedTimer.current), []);
   const link = origin ? inviteUrl(origin, code) : "";
 
   async function copy() {
     try {
       await navigator.clipboard.writeText(link);
-      setCopied(true);
-      toast("Invite link copied");
-      setTimeout(() => setCopied(false), 2000);
+      // Reset first so a second copy is announced again by the status region below.
+      clearTimeout(copiedTimer.current);
+      setCopied(false);
+      requestAnimationFrame(() => setCopied(true));
+      copiedTimer.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       linkRef.current?.select();
       toast.error("Couldn't copy. The link is selected: copy it from there.");
@@ -87,7 +91,10 @@ export function InviteDialog({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="secondary" className={cn("min-h-11 shrink-0 rounded-xl px-4", PAGE_RING)}>
+        <Button
+          variant="secondary"
+          className={cn("min-h-11 shrink-0 rounded-xl border-border px-4", PAGE_RING)}
+        >
           <UserPlus className="size-4" strokeWidth={1.75} aria-hidden />
           Invite
         </Button>

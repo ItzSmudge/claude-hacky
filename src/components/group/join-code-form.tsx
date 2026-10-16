@@ -20,7 +20,9 @@ export function JoinCodeForm({ defaultValue = "" }: { defaultValue?: string }) {
     event.preventDefault();
     const code = normaliseJoinCode(String(new FormData(event.currentTarget).get("code") ?? ""));
     if (!code) {
-      setError("Join codes are 6 letters or numbers, like ABC234.");
+      // Clear first so the same message is announced again on a repeat attempt.
+      setError("");
+      requestAnimationFrame(() => setError("Join codes are 6 letters or numbers, like ABC234."));
       return;
     }
     setError("");

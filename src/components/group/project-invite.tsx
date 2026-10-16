@@ -20,6 +20,7 @@ export async function ProjectInvite({ projectId }: { projectId: string }) {
       .eq("project_id", projectId),
   ]);
   if (project.error) console.error("[group] reading join code failed", project.error.message);
+  if (members.error) console.error("[group] counting members failed", members.error.message);
   if (!project.data) return null;
   return (
     <InviteDialog

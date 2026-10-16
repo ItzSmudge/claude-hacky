@@ -11,8 +11,8 @@ import { JoinCodeForm } from "./join-code-form";
 type JoinResult =
   { status: "joined"; projectId: string } | { status: "unknown" } | { status: "failed" };
 
-// One join per code per page load, even if the effect runs twice (React dev). Failures are
-// forgotten so Try again really retries.
+// One join in flight per code, even if the effect runs twice (React dev). Forgotten once settled,
+// so Try again (or opening the link again later) really calls join_project again.
 const joins = new Map<string, Promise<JoinResult>>();
 
 function joinOnce(code: string): Promise<JoinResult> {
@@ -33,7 +33,7 @@ function joinOnce(code: string): Promise<JoinResult> {
       }
     })();
     joins.set(code, join);
-    void join.then((r) => r.status === "joined" || joins.delete(code));
+    void join.finally(() => joins.delete(code));
   }
   return join;
 }
@@ -43,6 +43,8 @@ export function JoinProject({ code }: { code: string }) {
   const router = useRouter();
   const [result, setResult] = useState<JoinResult | null>(null);
   const [attempt, setAttempt] = useState(0);
+  // Try again stays mounted (busy) while retrying, so keyboard focus isn't lost.
+  const [retrying, setRetrying] = useState(false);
   // Keeps "Joining…" up until the deck route has committed.
   const [, startTransition] = useTransition();
 
@@ -50,6 +52,7 @@ export function JoinProject({ code }: { code: string }) {
     let cancelled = false;
     void joinOnce(code).then((r) => {
       if (cancelled) return;
+      setRetrying(false);
       if (r.status !== "joined") return setResult(r);
       startTransition(() => {
         router.replace(`/app/p/${r.projectId}`);
@@ -78,12 +81,15 @@ export function JoinProject({ code }: { code: string }) {
         <p role="alert">Couldn&apos;t join the project. Check your connection and try again.</p>
         <Button
           onClick={() => {
-            setResult(null);
+            if (retrying) return;
+            setRetrying(true);
             setAttempt((n) => n + 1);
           }}
-          className="min-h-11 rounded-xl px-5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          aria-disabled={retrying || undefined}
+          aria-busy={retrying || undefined}
+          className="min-h-11 rounded-xl px-5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background aria-disabled:opacity-70"
         >
-          Try again
+          {retrying ? "Trying again…" : "Try again"}
         </Button>
       </div>
     );

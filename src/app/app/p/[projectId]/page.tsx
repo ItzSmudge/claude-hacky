@@ -21,7 +21,7 @@ export default function DeckPage({ params }: PageProps<"/app/p/[projectId]">) {
             {fixtureProject.title}
           </h1>
           {/* GR-01: share the join code / link */}
-          <Suspense fallback={null}>
+          <Suspense fallback={<div aria-hidden className="h-11 w-24 shrink-0" />}>
             <InviteFor params={params} />
           </Suspense>
         </div>

@@ -11,7 +11,13 @@ export default function JoinPage({ params }: PageProps<"/app/join/[code]">) {
   return (
     <div className="mx-auto flex max-w-md flex-col gap-4">
       <h1 className="font-display text-2xl font-semibold text-primary md:text-3xl">Join a group</h1>
-      <Suspense fallback={<p className="text-muted-foreground">Joining project…</p>}>
+      <Suspense
+        fallback={
+          <p role="status" className="text-muted-foreground">
+            Joining project…
+          </p>
+        }
+      >
         <Join params={params} />
       </Suspense>
     </div>
