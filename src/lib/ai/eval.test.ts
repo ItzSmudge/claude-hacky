@@ -62,6 +62,17 @@ describe("checkAnalysis", () => {
     expect(check(good({ overview: text })).failures.join(" ")).toMatch(/title/i);
   });
 
+  it("allows a title run that the paper's abstract or the brief also uses (live false alarm)", () => {
+    // Another fixture title starts "Social Media Use and Adolescent Mental Health: …"; here the
+    // phrase is the topic, written in this paper's own abstract.
+    const p: Paper = {
+      ...paper,
+      abstract: `${paper.abstract} We discuss social media use and adolescent mental health together.`,
+    };
+    const text = "Reviews social media use and adolescent mental health links.";
+    expect(check(good({ overview: text }), p).failures).toEqual([]);
+  });
+
   it("does not treat single title words as a copied title", () => {
     expect(check(good({ relevanceReason: "Social media and mental health" })).failures).toEqual([]);
   });
@@ -135,6 +146,12 @@ describe("checkAnalysis", () => {
   describe("warnings", () => {
     it("warns on a number the source does not contain", () => {
       expect(check(good({ overview: "A survey of 312 teens." })).warnings.join(" ")).toMatch(/312/);
+    });
+
+    it("ignores digits inside words such as claim ids (live false alarm)", () => {
+      expect(check(good({ whyItMatters: "Bears directly on c1 and claim c2." })).warnings).toEqual(
+        [],
+      );
     });
 
     it("accepts 2,109 and 2109 when the source has 2109", () => {

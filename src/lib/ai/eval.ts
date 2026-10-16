@@ -37,7 +37,8 @@ const DOI = /\b10\.\d{4,9}\/\S/;
 const ET_AL = /\bet al\b/i;
 const PAREN_CITATION = /\(\s*[A-Z][\p{L}'-]+,?\s+(?:19|20)\d{2}\s*\)/u;
 const YEAR = /\b(?:19|20)\d{2}\b/g;
-const NUMBER = /\d[\d,]*(?:\.\d+)?/g;
+// Standalone numbers only: the digit in a claim id like "c1" is not a statistic.
+const NUMBER = /(?<![\p{L}\d.,])\d[\d,]*(?:\.\d+)?(?![\p{L}\d])/gu;
 
 /** Lowercase, punctuation → spaces, collapsed; so "use, problems" matches "use problems". */
 const norm = (text: string) =>
@@ -106,9 +107,22 @@ export function checkAnalysis(
   const sourceYears = new Set(source.match(YEAR) ?? []);
   const sourceNumbers = numbersIn(source);
   const names = surnames(paper);
+  // A title run the model was also given as ordinary text (this paper's abstract, or the brief)
+  // is the topic in plain words, not a copied title: "social media use and adolescent mental".
+  const given = ` ${norm(
+    [
+      paper.abstract ?? "",
+      context.topic,
+      context.summary,
+      ...context.claims.map((c) => c.text),
+      ...context.themes,
+      ...context.constraints,
+    ].join(" "),
+  )} `;
   const titleRuns = new Map<string, string>();
   for (const p of [paper, ...others])
-    for (const run of runs(p.title, TITLE_RUN)) titleRuns.set(run, p.id);
+    for (const run of runs(p.title, TITLE_RUN))
+      if (!given.includes(` ${run} `)) titleRuns.set(run, p.id);
 
   for (const [name, text] of fields) {
     const padded = ` ${norm(text)} `;
