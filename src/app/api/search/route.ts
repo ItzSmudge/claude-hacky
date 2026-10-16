@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { planSearchQueries } from "@/lib/ai";
 import { searchRequestSchema, type ApiError, type SearchResponse } from "@/lib/api-schemas";
 import {
   OpenAlexError,
@@ -17,6 +18,25 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 const DEADLINE_MS = 15_000;
 /** S2 TLDR enrichment (SE-03) is best effort: past this the page goes out without it. */
 const ENRICH_BUDGET_MS = 3_000;
+
+/** Query planning is best effort: past this the question is searched as typed. */
+const PLAN_BUDGET_MS = 6_000;
+const MAX_PLANS = 200;
+/** Question → planned queries, so later pages (and teammates) reuse the same queries. */
+const plans = new Map<string, Promise<string[]>>();
+
+function planOnce(q: string): Promise<string[]> {
+  const key = q.trim().toLowerCase();
+  const cached = plans.get(key);
+  if (cached) return cached;
+  // Not tied to this request's signal: a cancelled request mustn't fail others sharing the plan.
+  const planned = planSearchQueries(q, AbortSignal.timeout(PLAN_BUDGET_MS));
+  // A failure isn't cached: the next page tries again.
+  planned.catch(() => plans.delete(key));
+  if (plans.size >= MAX_PLANS) plans.delete(plans.keys().next().value!);
+  plans.set(key, planned);
+  return planned;
+}
 
 const error = (status: number, message: string, details?: unknown, headers?: HeadersInit) =>
   NextResponse.json<ApiError>(
@@ -46,6 +66,7 @@ export async function GET(request: Request) {
   try {
     const response = await searchPapers(parsed.data, {
       search: (query) => searchOpenAlex(query, { signal }),
+      plan: planOnce,
       enrich: async (papers) =>
         enrichPapers(
           papers,

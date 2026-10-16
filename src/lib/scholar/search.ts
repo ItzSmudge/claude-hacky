@@ -4,7 +4,7 @@ import type { Paper } from "@/types/domain";
 import type { OpenAlexSearchParams, OpenAlexSearchResult } from "./openalex";
 
 /**
- * Search pipeline behind /api/search (SE-05): OpenAlex → drop excluded terms → credibility →
+ * Search pipeline behind /api/search (SE-05): plan keyword queries → OpenAlex → drop excluded terms → credibility →
  * cache in `papers`. Dependencies are injected so this stays testable without network or DB.
  */
 
@@ -45,20 +45,74 @@ export interface SearchDeps {
   enrich?: (papers: Paper[]) => Promise<Paper[]>;
   /** Upserts papers into the shared cache; swipes reference `papers`, so this must run. */
   cache?: (papers: Paper[]) => Promise<void>;
+  /**
+   * Short keyword queries for a long question (OpenAlex ranks a sentence by its filler words).
+   * Best effort: a rejection or an empty list searches the question as typed.
+   */
+  plan?: (q: string) => Promise<string[]>;
   now?: Date;
+}
+
+/** Questions longer than this many words are planned into keyword queries first. */
+export const MAX_PLAIN_QUERY_WORDS = 6;
+
+async function searchQueries(q: string, plan: SearchDeps["plan"]): Promise<string[]> {
+  if (!plan || q.split(/\s+/).filter(Boolean).length <= MAX_PLAIN_QUERY_WORDS) return [q];
+  try {
+    const queries = (await plan(q)).filter((query) => query.trim());
+    return queries.length ? queries : [q];
+  } catch (error) {
+    console.warn(
+      "[search] query planning skipped:",
+      error instanceof Error ? error.message : error,
+    );
+    return [q];
+  }
+}
+
+/** Round-robin across result lists, first occurrence of each id wins. */
+function interleave(lists: Paper[][]): Paper[] {
+  const seen = new Set<string>();
+  const out: Paper[] = [];
+  for (let i = 0; lists.some((list) => i < list.length); i++) {
+    for (const list of lists) {
+      const paper = list[i];
+      if (paper && !seen.has(paper.id)) {
+        seen.add(paper.id);
+        out.push(paper);
+      }
+    }
+  }
+  return out;
 }
 
 export async function searchPapers(
   request: SearchRequest,
-  { search, enrich, cache, now = new Date() }: SearchDeps,
+  { search, enrich, cache, plan, now = new Date() }: SearchDeps,
 ): Promise<SearchResponse> {
-  const { papers, nextPage } = await search({
-    q: request.q,
-    yearFrom: request.yearFrom,
-    yearTo: request.yearTo,
-    page: request.page,
-    perPage: request.perPage,
-  });
+  const queries = await searchQueries(request.q, plan);
+  // Each query pages in step, so page n of the deck is page n of every query.
+  const perPage = Math.ceil(request.perPage / queries.length);
+  const settled = await Promise.allSettled(
+    queries.map((q) =>
+      search({
+        q,
+        yearFrom: request.yearFrom,
+        yearTo: request.yearTo,
+        page: request.page,
+        perPage,
+      }),
+    ),
+  );
+  const pages = settled.flatMap((s) => (s.status === "fulfilled" ? [s.value] : []));
+  if (!pages.length) throw (settled[0] as PromiseRejectedResult).reason;
+  const papers = interleave(pages.map((p) => p.papers));
+  const nextPage =
+    pages.length === 1
+      ? pages[0]!.nextPage
+      : pages.some((p) => p.nextPage !== null)
+        ? request.page + 1
+        : null;
   const exclude = (request.exclude ?? []).map(wholeWord);
   let kept = papers.filter((paper) => !matchesExcluded(paper, exclude));
 

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { searchRequestSchema } from "@/lib/api-schemas";
 import { computeCredibility } from "@/lib/credibility";
 import type { Paper } from "@/types/domain";
-import type { OpenAlexSearchResult } from "./openalex";
+import type { OpenAlexSearchParams, OpenAlexSearchResult } from "./openalex";
 import { matchesExcluded, parseExcludeTerms, searchPapers } from "./search";
 
 const NOW = new Date("2026-10-15T12:00:00Z");
@@ -212,5 +212,74 @@ describe("searchPapers enrichment", () => {
     const enrich = vi.fn(async (papers: Paper[]) => papers);
     await searchPapers(request(), { search: async () => result([], null), enrich, now: NOW });
     expect(enrich).not.toHaveBeenCalled();
+  });
+});
+
+describe("searchPapers with planned queries", () => {
+  const long = "Can acoustic injection into MEMS inertial sensors be detected in real time?";
+
+  it("searches each planned query and interleaves the results without duplicates", async () => {
+    const search = vi.fn(async ({ q }: OpenAlexSearchParams) =>
+      q === "mems acoustic"
+        ? result([paper("A1"), paper("A2"), paper("S1")])
+        : result([paper("B1"), paper("S1"), paper("B2")], null),
+    );
+    const plan = vi.fn(async () => ["mems acoustic", "mems emi"]);
+    const res = await searchPapers(request({ q: long, perPage: 20 }), { search, plan, now: NOW });
+    expect(plan).toHaveBeenCalledWith(long);
+    expect(search.mock.calls.map(([p]) => [p.q, p.perPage])).toEqual([
+      ["mems acoustic", 10],
+      ["mems emi", 10],
+    ]);
+    expect(res.papers.map((p) => p.externalId)).toEqual(["A1", "B1", "A2", "S1", "B2"]);
+    expect(res.nextPage).toBe(2);
+  });
+
+  it("has no next page only when every query is exhausted", async () => {
+    const search = vi.fn(async () => result([paper("A1")], null));
+    const res = await searchPapers(request({ q: long }), {
+      search,
+      plan: async () => ["a b", "c d"],
+      now: NOW,
+    });
+    expect(res.nextPage).toBeNull();
+  });
+
+  it("sends short queries as they are, without planning", async () => {
+    const search = vi.fn(async () => result([paper("A1")]));
+    const plan = vi.fn(async () => ["x"]);
+    await searchPapers(request({ q: "social media teens" }), { search, plan, now: NOW });
+    expect(plan).not.toHaveBeenCalled();
+    expect(search).toHaveBeenCalledWith(expect.objectContaining({ q: "social media teens" }));
+  });
+
+  it("falls back to the question when planning fails or returns nothing", async () => {
+    for (const plan of [async () => [], async () => Promise.reject(new Error("down"))]) {
+      const search = vi.fn(async () => result([paper("A1")]));
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      await searchPapers(request({ q: long }), { search, plan, now: NOW });
+      expect(search).toHaveBeenCalledWith(expect.objectContaining({ q: long, perPage: 20 }));
+      warn.mockRestore();
+    }
+  });
+
+  it("keeps the results of queries that succeed when another fails", async () => {
+    const search = vi.fn(async ({ q }: OpenAlexSearchParams) => {
+      if (q === "bad") throw new Error("429");
+      return result([paper("A1")]);
+    });
+    const res = await searchPapers(request({ q: long }), {
+      search,
+      plan: async () => ["good", "bad"],
+      now: NOW,
+    });
+    expect(res.papers.map((p) => p.externalId)).toEqual(["A1"]);
+  });
+
+  it("rethrows when every query fails", async () => {
+    const search = vi.fn(async () => Promise.reject(new Error("429")));
+    await expect(
+      searchPapers(request({ q: long }), { search, plan: async () => ["a", "b"], now: NOW }),
+    ).rejects.toThrow("429");
   });
 });
