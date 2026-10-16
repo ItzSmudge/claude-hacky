@@ -96,10 +96,21 @@ function createPersistence(projectId: string, titleOf: (paperId: string) => stri
     },
   });
 
-  return (op: SwipeOp) => {
-    latest.set(op.paperId, op);
-    toast.dismiss(toastId(op.paperId));
-    queue.enqueue(op);
+  return {
+    push(op: SwipeOp) {
+      latest.set(op.paperId, op);
+      toast.dismiss(toastId(op.paperId));
+      queue.enqueue(op);
+    },
+    /**
+     * Before Start over: wait for writes still in flight (a late save would otherwise land after
+     * the delete and bring that paper back), then make old failure toasts' Retry do nothing.
+     */
+    async settle(timeoutMs = 5000) {
+      await Promise.race([queue.idle(), new Promise((r) => setTimeout(r, timeoutMs))]);
+      for (const paperId of latest.keys()) toast.dismiss(toastId(paperId));
+      latest.clear();
+    },
   };
 }
 
@@ -156,7 +167,7 @@ export function PersistedSwipeDeck({
   const persist = useRef<ReturnType<typeof createPersistence> | null>(null);
   const enqueue = (op: SwipeOp) => {
     persist.current ??= createPersistence(projectId, (id) => titles.current.get(id));
-    persist.current(op);
+    persist.current.push(op);
   };
 
   const featureIds = useMemo(
@@ -198,6 +209,7 @@ export function PersistedSwipeDeck({
     if (startingOver) return;
     setStartingOver(true);
     try {
+      await persist.current?.settle();
       const res = await fetch(`/api/projects/${projectId}/swipes?all=true`, { method: "DELETE" });
       if (!res.ok) throw new Error(String(res.status));
       // A fresh load rebuilds the queue, ranking and history from nothing.
@@ -285,7 +297,12 @@ export function PersistedSwipeDeck({
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="ghost" className="min-h-11">
+              <Button
+                type="button"
+                variant="ghost"
+                className="min-h-11 aria-disabled:opacity-70"
+                aria-disabled={startingOver || undefined}
+              >
                 Cancel
               </Button>
             </DialogClose>
