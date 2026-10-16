@@ -6,10 +6,13 @@ import {
   type OpenAlexSearchParams,
 } from "./openalex";
 import {
+  lookupSemanticScholarByDoi as lookupSemanticScholarByDoiWith,
   searchSemanticScholar as searchSemanticScholarWith,
   type SemanticScholarDeps,
   type SemanticScholarSearchParams,
 } from "./semanticscholar";
+
+export { enrichPapers, keepCachedFields, type S2Enrichment } from "./merge";
 
 export {
   SemanticScholarError,
@@ -40,6 +43,14 @@ export function searchSemanticScholar(
   deps: SemanticScholarDeps = {},
 ) {
   return searchSemanticScholarWith(params, {
+    ...deps,
+    apiKey: deps.apiKey ?? serverEnv().SEMANTIC_SCHOLAR_API_KEY,
+  });
+}
+
+/** S2 TLDR/abstract lookup by DOI with the API key from env (if set) unless the caller passes one. */
+export function lookupSemanticScholarByDoi(dois: string[], deps: SemanticScholarDeps = {}) {
+  return lookupSemanticScholarByDoiWith(dois, {
     ...deps,
     apiKey: deps.apiKey ?? serverEnv().SEMANTIC_SCHOLAR_API_KEY,
   });
