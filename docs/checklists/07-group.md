@@ -7,4 +7,4 @@
 
 - [x] GR-01 Join code + invite link; join adds `project_members`
 - [ ] GR-02 Realtime presence ("3 people swiping") + live swipe feed
-- [ ] GR-03 Compiled reading list (save counts) + disagreement flags with quick "discuss/resolve"
+- [x] GR-03 Compiled reading list (save counts) + disagreement flags with quick "discuss/resolve"
