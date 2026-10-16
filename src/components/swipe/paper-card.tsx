@@ -104,7 +104,7 @@ export function PaperCard({
       </div>
 
       {onDetails ? (
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           {/* AX-02: only the top card (the one with Details) can be read aloud. */}
           <ReadAloud
             parts={cardScript({ title: paper.title, whyItMatters, overview })}

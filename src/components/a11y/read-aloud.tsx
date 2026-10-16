@@ -7,6 +7,9 @@ import { RATES, nextRate, rateLabel, toUtterances, type Rate } from "./speech";
 
 // ── One shared player: only one Listen button speaks at a time, page-wide ─────────────────
 let speakingId: string | null = null;
+// Each playback gets a token: WebKit fires `end` (not `error`) on utterances removed by cancel(),
+// so a restart at a new speed must not be stopped by the old queue's last `end`.
+let session = 0;
 let rate: Rate = 1;
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
@@ -35,6 +38,7 @@ function speak(id: string, parts: readonly string[]) {
   const s = synth();
   if (!s) return;
   s.cancel();
+  const mine = ++session;
   speakingId = id;
   emit();
   const chunks = toUtterances(parts);
@@ -44,12 +48,12 @@ function speak(id: string, parts: readonly string[]) {
     u.lang = "en-GB";
     if (i === chunks.length - 1) {
       u.onend = () => {
-        if (speakingId === id) stop();
+        if (session === mine) stop();
       };
     }
     // cancel() fires "interrupted"/"canceled" on the old queue: only real failures reset us.
     u.onerror = (e) => {
-      if (speakingId === id && e.error !== "interrupted" && e.error !== "canceled") stop();
+      if (session === mine && e.error !== "interrupted" && e.error !== "canceled") stop();
     };
     // Queued synchronously inside the click, which iOS Safari needs to allow speech.
     s.speak(u);
@@ -97,12 +101,16 @@ export function ReadAloud({
   );
   const currentRate = useSyncExternalStore(
     subscribe,
-    () => {
-      loadRate();
-      return rate;
-    },
+    () => rate,
     () => 1 as Rate,
   );
+  // The remembered speed, once, after hydration.
+  useEffect(() => {
+    if (!rateLoaded) {
+      loadRate();
+      emit();
+    }
+  }, []);
 
   // Swiped away or closed: don't keep talking about a paper that's gone.
   useEffect(
@@ -128,10 +136,12 @@ export function ReadAloud({
 
   return (
     <div role="group" aria-label="Read aloud" className={cn("flex items-center gap-1", className)}>
+      <span className="sr-only">
+        Uses your device&apos;s voice, which may overlap your screen reader.
+      </span>
       <button
         type="button"
         onClick={() => (speaking ? stop() : speak(id, parts))}
-        aria-pressed={speaking}
         aria-label={speaking ? `Stop reading ${what}` : `Listen to ${what}`}
         className={cn(
           "inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-primary transition-colors hover:bg-muted",

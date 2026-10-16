@@ -4,7 +4,7 @@
 
 ## AX-01: deck pass (from an a11y-reviewer audit)
 
-- **After Save/Skip,** the announcement says what's on screen now, not only what left: "Saved: X. Next: Y. 18 left." On the last paper: "That was the last paper." Focus usually stays on Save/Skip, so before this the next paper was never read.
+- **After Save/Skip,** the announcement says what's on screen now: "Saved. 18 left. Next: Y." When focus moves into the deck (whose label already reads the next title), the "Next" part is left out. On the last paper: "That was the last paper." Focus usually stays on Save/Skip, so before this the next paper was never read.
 - **The deck region's name includes the paper:** "Paper 3 of 20: <title>".
 - **Shortcuts are exposed:** `aria-keyshortcuts` plus a description ("Right arrow saves, left arrow skips, up arrow opens details, Z undoes."). Details shows a visible ↑ hint on larger screens.
 - **Loading:** "N papers ready. <title>" when cards arrive after loading, and "No papers to swipe yet." when none come.

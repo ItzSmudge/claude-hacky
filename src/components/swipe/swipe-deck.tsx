@@ -148,11 +148,16 @@ export function SwipeDeck({
   const emptyFired = useRef(false);
 
   const [flash, setFlash] = useState<SwipeDecision | null>(null);
-  const [announcement, setAnnouncementNow] = useState("");
+  const [announcement, setAnnouncementText] = useState("");
+  const announceFrame = useRef(0);
+  const setAnnouncementNow = (text: string) => {
+    cancelAnimationFrame(announceFrame.current);
+    setAnnouncementText(text);
+  };
   // Clear, then set on the next frame, so an identical message (undo/redo) is read again.
   const setAnnouncement = (text: string) => {
     setAnnouncementNow("");
-    requestAnimationFrame(() => setAnnouncementNow(text));
+    announceFrame.current = requestAnimationFrame(() => setAnnouncementText(text));
   };
 
   const top = current(deck);
@@ -207,12 +212,14 @@ export function SwipeDeck({
   // AX-01: the skeleton's status disappears silently when cards arrive; say so instead.
   // Adjust-state-during-render (as for `items` above), not an effect.
   const [wasLoading, setWasLoading] = useState(loading);
-  if (wasLoading !== loading) {
+  // Wait until `items` has been synced into the deck (above), or the batch that ended loading
+  // isn't in `deck` yet and this would say "No papers" as the cards arrive.
+  if (wasLoading !== loading && items === syncedItems) {
     setWasLoading(loading);
     if (wasLoading && top) {
-      setAnnouncementNow(`${left} ${left === 1 ? "paper" : "papers"} ready. ${top.paper.title}.`);
+      setAnnouncementText(`${left} ${left === 1 ? "paper" : "papers"} ready. ${top.paper.title}.`);
     } else if (wasLoading && total === 0) {
-      setAnnouncementNow("No papers to swipe yet.");
+      setAnnouncementText("No papers to swipe yet.");
     }
   }
 
@@ -252,10 +259,14 @@ export function SwipeDeck({
     // The card behind becomes the top one (re-ranking only reorders the cards after it).
     const next = upcoming(deckRef.current, 1)[0];
     dispatch({ type: "decide", paperId: paper.id, decision });
-    // AX-01: say what's on screen now, not only what left; focus often stays on Save/Skip.
+    // AX-01: say what's on screen now; focus often stays on Save/Skip. When focus moves to the
+    // deck, its label already reads the next title, so don't say it twice.
+    const leftNow = remaining(deckRef.current) - 1;
     setAnnouncement(
-      `${decision === "save" ? "Saved" : "Skipped"}: ${paper.title}. ` +
-        (next ? `Next: ${next.paper.title}. ${left - 1} left.` : "That was the last paper."),
+      `${decision === "save" ? "Saved" : "Skipped"}. ` +
+        (next
+          ? `${leftNow} left.${moveFocus ? "" : ` Next: ${next.paper.title}.`}`
+          : "That was the last paper."),
     );
     if (moveFocus) regionRef.current?.focus();
     safely(onDecide, paper.id, decision);
