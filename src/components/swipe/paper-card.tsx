@@ -58,7 +58,7 @@ export function PaperCard({
         {paper.title}
       </h2>
 
-      <p className="rounded-xl bg-highlight px-3 py-2 font-medium text-highlight-foreground hc:border-2 hc:border-primary">
+      <p className="highlight-sweep rounded-xl px-3 py-2 font-medium text-highlight-foreground hc:border-2 hc:border-primary">
         {whyItMatters ? (
           <>
             <span className="sr-only">Why it matters: </span>
@@ -96,7 +96,10 @@ export function PaperCard({
           aria-valuenow={relevance}
           aria-valuetext={`${relevance} out of 100`}
         >
-          <div className="h-full rounded-full bg-primary" style={{ width: `${relevance}%` }} />
+          <div
+            className="h-full fill-in rounded-full bg-primary"
+            style={{ width: `${relevance}%` }}
+          />
         </div>
         <span className="w-8 text-right font-medium tabular-nums" aria-hidden>
           {relevance}

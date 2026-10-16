@@ -46,7 +46,7 @@ export function SavedPaperCard({
       className={cn(
         "flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-paper md:p-6 hc:border-2",
         // Removed: dashed and muted, never faded — text keeps full contrast.
-        removed && "border-dashed bg-muted shadow-none",
+        removed ? "border-dashed bg-muted shadow-none" : "card-lift",
       )}
     >
       <header className="flex items-start justify-between gap-3">

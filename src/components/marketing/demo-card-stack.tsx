@@ -1,8 +1,15 @@
 "use client";
 
 import { Pause, Play, ShieldCheck } from "lucide-react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import {
+  AnimatePresence,
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useSpring,
+  useTransform,
+} from "motion/react";
+import { useEffect, useState, useSyncExternalStore, type PointerEvent } from "react";
 import { cn } from "@/lib/utils";
 
 /** Just what the hero card needs; picked from fixtures on the server so no JSON ships to the client. */
@@ -37,6 +44,23 @@ export function DemoCardStack({ cards }: { cards: DemoCard[] }) {
   const [paused, setPaused] = useState(false);
   const animate = mounted && !reduceMotion && !paused && cards.length > 1;
 
+  // The stack leans gently towards a mouse pointer (never touch, never under reduced motion).
+  const px = useMotionValue(0);
+  const py = useMotionValue(0);
+  const smooth = { stiffness: 150, damping: 20 };
+  const rotateY = useSpring(useTransform(px, [-0.5, 0.5], [-6, 6]), smooth);
+  const rotateX = useSpring(useTransform(py, [-0.5, 0.5], [5, -5]), smooth);
+  const lean = (event: PointerEvent<HTMLDivElement>) => {
+    if (reduceMotion || event.pointerType !== "mouse") return;
+    const box = event.currentTarget.getBoundingClientRect();
+    px.set((event.clientX - box.left) / box.width - 0.5);
+    py.set((event.clientY - box.top) / box.height - 0.5);
+  };
+  const settle = () => {
+    px.set(0);
+    py.set(0);
+  };
+
   useEffect(() => {
     if (!animate) return;
     const timer = setInterval(() => setIndex((i) => i + 1), INTERVAL_MS);
@@ -53,7 +77,13 @@ export function DemoCardStack({ cards }: { cards: DemoCard[] }) {
 
   return (
     <div className="relative mx-auto w-full max-w-sm">
-      <div aria-hidden className="relative h-72">
+      <motion.div
+        aria-hidden
+        onPointerMove={lean}
+        onPointerLeave={settle}
+        style={{ rotateX, rotateY, transformPerspective: 900 }}
+        className="relative h-72"
+      >
         <AnimatePresence initial={false}>
           {[...visible].reverse().map(({ depth, card, key }) => (
             <motion.div
@@ -82,7 +112,7 @@ export function DemoCardStack({ cards }: { cards: DemoCard[] }) {
             </motion.div>
           ))}
         </AnimatePresence>
-      </div>
+      </motion.div>
 
       {/* Hidden by CSS, not JS, under reduced motion: useReducedMotion() differs between server and client. */}
       {cards.length > 1 && (
@@ -118,7 +148,7 @@ function MiniCard({ card, stamp }: { card: DemoCard; stamp?: "save" | "skip" }) 
       <p className="line-clamp-3 font-display text-lg leading-snug font-semibold text-primary">
         {card.title}
       </p>
-      <p className="line-clamp-2 rounded-xl bg-highlight px-3 py-2 text-sm font-medium text-highlight-foreground">
+      <p className="line-clamp-2 highlight-sweep rounded-xl px-3 py-2 text-sm font-medium text-highlight-foreground">
         {card.whyItMatters}
       </p>
       {stamp && (
