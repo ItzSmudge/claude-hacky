@@ -211,7 +211,12 @@ export function VoiceControl({
           )}
           Voice control
         </button>
-        <p id={hintId} className="min-w-0 flex-1 text-sm text-muted-foreground">
+        {/* Only on screen while listening, so the idle button doesn't push the card down on
+            phones; the button's description always carries it for screen readers. */}
+        <p
+          id={hintId}
+          className={cn("min-w-0 flex-1 text-sm text-muted-foreground", !listening && "sr-only")}
+        >
           Say: {VOICE_COMMANDS}. Works best with headphones.
         </p>
       </div>

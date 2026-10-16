@@ -73,8 +73,9 @@ export function ExportPanel({ projectId, citeKeys }: { projectId: string; citeKe
 
   return (
     <section
+      id="export"
       aria-labelledby="export-heading"
-      className="flex flex-col gap-5 rounded-2xl border border-border bg-card p-5 shadow-paper md:p-6"
+      className="flex scroll-mt-4 flex-col gap-5 rounded-2xl border border-border bg-card p-5 shadow-paper md:p-6"
     >
       <h2 id="export-heading" className="font-display text-xl font-semibold text-primary">
         Export
