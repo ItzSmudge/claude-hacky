@@ -1,6 +1,13 @@
 export const AHEAD = 3;
 /** Auto-paging stops after this many pages in a row with no analysed card: each page spends OpenAlex budget. */
 export const MAX_BARREN_PAGES = 2;
+/**
+ * Cards scored below this never reach the deck: on the analysis rubric 10–39 is "same broad
+ * field, little direct use", which is what a keyword search drags in alongside the real hits.
+ */
+export const MIN_RELEVANCE = 40;
+
+export const isRelevant = (analysis: { relevance: number }) => analysis.relevance >= MIN_RELEVANCE;
 
 /**
  * Which papers to send to /api/analyse next: the top card plus `ahead` behind it,
@@ -42,7 +49,7 @@ export function shouldAutoPage({
   nextPage: number | null;
   searchError: boolean;
   analyseUnavailable: boolean;
-  /** Pages fetched in a row without a single analysis arriving. */
+  /** Pages fetched in a row without a single relevant analysis arriving. */
   barrenPages: number;
   ahead?: number;
 }): boolean {

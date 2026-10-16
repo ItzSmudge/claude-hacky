@@ -35,3 +35,5 @@ export {
 } from "./schemas";
 export { phraseInsight, type InsightPrompt } from "./insight";
 export { insightOutputSchema, type InsightOutput } from "./schemas";
+export { finaliseSearchQueries, planSearchQueries } from "./search-queries";
+export { searchQueriesOutputSchema, type SearchQueriesOutput } from "./schemas";

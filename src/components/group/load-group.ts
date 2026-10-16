@@ -7,7 +7,7 @@ import type { Vote } from "./group-list";
 export interface GroupData {
   title: string;
   /** In join order (owner first). */
-  members: { userId: string; displayName: string | null }[];
+  members: { userId: string; displayName: string | null; role: "owner" | "member" }[];
   votes: Vote[];
   /** Papers that at least one member saved. */
   papers: Map<string, Paper>;
@@ -30,7 +30,7 @@ export async function loadGroup(
     supabase.from("projects").select("title").eq("id", projectId).maybeSingle(),
     supabase
       .from("project_members")
-      .select("user_id, joined_at")
+      .select("user_id, joined_at, role")
       .eq("project_id", projectId)
       .order("joined_at", { ascending: true }),
     // One row per paper someone saved, so the 1000-row API cap counts papers, not swipes.
@@ -99,7 +99,11 @@ export async function loadGroup(
     ok: true,
     group: {
       title: project.data.title,
-      members: userIds.map((userId) => ({ userId, displayName: names.get(userId) ?? null })),
+      members: members.data.map((m) => ({
+        userId: m.user_id,
+        displayName: names.get(m.user_id) ?? null,
+        role: m.role === "owner" ? "owner" : "member",
+      })),
       // Votes on papers we can't show would be counted but never rendered: drop them.
       votes: votes.filter((x) => paperMap.has(x.paperId)),
       papers: paperMap,

@@ -233,3 +233,20 @@ export const insightOutputSchema = z.object({
   ),
 });
 export type InsightOutput = z.infer<typeof insightOutputSchema>;
+
+/**
+ * Search query planning: a long research question → a few short keyword queries for OpenAlex,
+ * whose relevance ranking drowns in a question's filler words. Search terms only: no titles,
+ * authors, links or DOIs.
+ */
+export const MAX_SEARCH_QUERIES = 3;
+export const searchQueriesOutputSchema = z.object({
+  queries: z
+    .array(words(8, { noLinks: true }))
+    .min(1)
+    .max(MAX_SEARCH_QUERIES)
+    .describe(
+      `1–${MAX_SEARCH_QUERIES} keyword queries, most important first, each at most 8 words.`,
+    ),
+});
+export type SearchQueriesOutput = z.infer<typeof searchQueriesOutputSchema>;
