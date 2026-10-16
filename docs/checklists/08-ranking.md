@@ -7,5 +7,5 @@
 
 - [x] RK-01 (PR #7) ⚡ Feature extraction per paper (topics, keywords from title, year bucket, venue type) + tests
 - [x] RK-02 (PR #8) ⚡ Online weights from swipes (simple +/− per feature with decay); re-rank queue after ≥ 6 swipes
-- [x] RK-03 Insight toast: SMART model turns top negative/positive features into one sentence ("You keep skipping survey papers — hide them?") with one-tap apply → adds filter
+- [x] RK-03 (PR #54) Insight toast: SMART model turns top negative/positive features into one sentence ("You keep skipping survey papers — hide them?") with one-tap apply → adds filter
 - [ ] RK-04 Group mode: rank by combined weights
