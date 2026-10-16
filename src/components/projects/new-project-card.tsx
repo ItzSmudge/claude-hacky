@@ -57,17 +57,35 @@ export function NewProjectCard() {
   const [phase, setPhase] = useState<Phase>({ name: "form" });
   // Survives "Choose another file", so retries never create a second project.
   const projectId = useRef<string | null>(null);
+  // The question the project was created (or last updated) with, so edits reach the server.
+  const sentQuery = useRef<string | null>(null);
   const busy = useRef(false);
+  const questionInput = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const submitButton = useRef<HTMLButtonElement>(null);
+  const failedMessage = useRef<HTMLDivElement>(null);
   const reviewHeading = useRef<HTMLHeadingElement>(null);
+  const lastPhase = useRef<Phase["name"]>("form");
+  const focusFileNext = useRef(false);
 
+  // Move focus only when the step changes, never on edits within a step (typing would lose it).
   useEffect(() => {
-    if (phase.name === "review" && !phase.saving) reviewHeading.current?.focus();
-  }, [phase]);
+    if (phase.name === lastPhase.current) return;
+    lastPhase.current = phase.name;
+    if (phase.name === "review") reviewHeading.current?.focus();
+    else if (phase.name === "failed") failedMessage.current?.focus();
+    else if (phase.name === "form" && focusFileNext.current) fileInput.current?.focus();
+    else if (!document.activeElement || document.activeElement === document.body) {
+      submitButton.current?.focus();
+    }
+    focusFileNext.current = false;
+  }, [phase.name]);
 
+  /** An invalid file isn't kept: the drop zone stays, marked invalid, with the reason. */
   function chooseFile(next: File | null) {
-    setFile(next);
-    setFileError(next ? checkBriefFile(next) : null);
+    const problem = next && checkBriefFile(next);
+    setFile(problem ? null : next);
+    setFileError(problem || null);
   }
 
   function onDrop(event: DragEvent<HTMLLabelElement>) {
@@ -100,11 +118,7 @@ export function NewProjectCard() {
     const query = question.trim();
     if (!query) {
       setQuestionError("Write your research question first.");
-      return;
-    }
-    const problem = file && checkBriefFile(file);
-    if (problem) {
-      setFileError(problem);
+      questionInput.current?.focus();
       return;
     }
     busy.current = true;
@@ -126,6 +140,19 @@ export function NewProjectCard() {
           return;
         }
         projectId.current = ((await res.json()) as Project).id;
+        sentQuery.current = query;
+      } else if (query !== sentQuery.current) {
+        // Back from "Choose another file" with an edited question: the server reads the saved one.
+        const res = await fetch(`/api/projects/${projectId.current}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ query, title: titleFromQuestion(query) }),
+        });
+        if (!res.ok) {
+          toast.error(await readError(res));
+          return;
+        }
+        sentQuery.current = query;
       }
       await readBrief(projectId.current, file);
     } finally {
@@ -196,7 +223,7 @@ export function NewProjectCard() {
         : "";
 
   return (
-    <article className={CARD} aria-busy={working}>
+    <article className={CARD}>
       <h2 className="font-display text-2xl font-semibold text-balance text-primary">
         Start a project for your assignment
       </h2>
@@ -204,8 +231,10 @@ export function NewProjectCard() {
       {phase.name === "failed" ? (
         <FailedStep
           phase={phase}
+          focusRef={failedMessage}
           onChooseAnother={() => {
             chooseFile(null);
+            focusFileNext.current = true;
             setPhase({ name: "form" });
           }}
           onWithoutBrief={() => void retry(false)}
@@ -219,6 +248,7 @@ export function NewProjectCard() {
               What are you researching?
             </label>
             <Textarea
+              ref={questionInput}
               id={`${ids}-question`}
               value={question}
               onChange={(event) => {
@@ -256,7 +286,8 @@ export function NewProjectCard() {
                   disabled={working}
                   onClick={() => {
                     chooseFile(null);
-                    if (fileInput.current) fileInput.current.value = "";
+                    // Same step, so the effect won't run: focus the drop zone once it's back.
+                    requestAnimationFrame(() => fileInput.current?.focus());
                   }}
                 >
                   <X aria-hidden strokeWidth={1.75} />
@@ -280,22 +311,26 @@ export function NewProjectCard() {
                 <span className="text-sm font-medium text-primary">
                   Choose a file or drop it here
                 </span>
-                <span className="text-sm text-muted-foreground">PDF, Word or text, up to 4 MB</span>
+                <span id={`${ids}-file-hint`} className="text-sm text-muted-foreground">
+                  PDF, Word or text, up to 4 MB
+                </span>
+                {/* Inside the label, so the drop zone shows the focus ring (focus-within). */}
+                <input
+                  ref={fileInput}
+                  id={`${ids}-file`}
+                  type="file"
+                  accept={ACCEPTED_BRIEF}
+                  className="sr-only"
+                  aria-labelledby={`${ids}-file-label`}
+                  aria-describedby={cn(`${ids}-file-hint`, fileError && `${ids}-file-error`)}
+                  aria-invalid={Boolean(fileError)}
+                  disabled={working}
+                  onChange={(event) => chooseFile(event.target.files?.[0] ?? null)}
+                />
               </label>
             )}
-            <input
-              ref={fileInput}
-              id={`${ids}-file`}
-              type="file"
-              accept={ACCEPTED_BRIEF}
-              className="sr-only"
-              aria-labelledby={`${ids}-file-label`}
-              aria-describedby={fileError ? `${ids}-file-error` : undefined}
-              disabled={working}
-              onChange={(event) => chooseFile(event.target.files?.[0] ?? null)}
-            />
             {fileError && (
-              <p id={`${ids}-file-error`} className="text-sm text-destructive">
+              <p id={`${ids}-file-error`} role="alert" className="text-sm text-destructive">
                 {fileError}
               </p>
             )}
@@ -309,7 +344,13 @@ export function NewProjectCard() {
             </div>
           )}
 
-          <Button type="submit" className="min-h-11 self-start px-5 text-base" disabled={working}>
+          {/* aria-disabled, not disabled: a disabled button drops keyboard focus. `busy` guards. */}
+          <Button
+            ref={submitButton}
+            type="submit"
+            className="min-h-11 self-start px-5 text-base aria-disabled:opacity-70"
+            aria-disabled={working}
+          >
             {working && (
               <LoaderCircle aria-hidden className="animate-spin motion-reduce:animate-none" />
             )}
@@ -327,12 +368,14 @@ export function NewProjectCard() {
 
 function FailedStep({
   phase,
+  focusRef,
   onChooseAnother,
   onWithoutBrief,
   onRetry,
   onQuestionOnly,
 }: {
   phase: Extract<Phase, { name: "failed" }>;
+  focusRef: React.RefObject<HTMLDivElement | null>;
   onChooseAnother: () => void;
   onWithoutBrief: () => void;
   onRetry: () => void;
@@ -340,7 +383,12 @@ function FailedStep({
 }) {
   const file = phase.kind === "file";
   return (
-    <div className="flex flex-col gap-4" role="alert">
+    <div
+      ref={focusRef}
+      tabIndex={-1}
+      role="alert"
+      className="flex flex-col gap-4 rounded-xl outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-card"
+    >
       <p className="text-base">{file ? phase.message : "Couldn't read that right now."}</p>
       <div className="flex flex-wrap gap-3">
         <Button className="min-h-11 px-5" onClick={file ? onChooseAnother : onRetry}>
@@ -374,11 +422,43 @@ function ReviewStep({
   onStart: (draft: ReviewDraft) => void;
 }) {
   const ids = useId();
-  const set = (patch: Partial<ReviewDraft>) => onChange({ ...draft, ...patch });
+  const root = useRef<HTMLElement>(null);
+  // Adding or removing deletes or creates the focused control; say where focus goes next.
+  const focusNext = useRef<string[] | null>(null);
+  const set = (patch: Partial<ReviewDraft>, ...focus: string[]) => {
+    focusNext.current = focus.length ? focus : null;
+    onChange({ ...draft, ...patch });
+  };
   const summary = draft.summary.trim();
 
+  useEffect(() => {
+    const selectors = focusNext.current;
+    focusNext.current = null;
+    for (const selector of selectors ?? []) {
+      const target = root.current?.querySelector<HTMLElement>(selector);
+      if (target) return target.focus();
+    }
+  }, [draft]);
+
+  const removeClaim = (i: number) => {
+    const left = draft.claims.length - 1;
+    set(
+      { claims: draft.claims.filter((_, j) => j !== i) },
+      `[data-claim-remove="${Math.min(i, left - 1)}"]`,
+      "[data-add-claim]",
+    );
+  };
+  const removeChip = (list: "themes" | "constraints", i: number) => {
+    const left = draft[list].length - 1;
+    set(
+      { [list]: draft[list].filter((_, j) => j !== i) },
+      `[data-chip-remove="${list}-${Math.min(i, left - 1)}"]`,
+      "[data-start]",
+    );
+  };
+
   return (
-    <article className={CARD} aria-labelledby={`${ids}-heading`}>
+    <article ref={root} className={CARD} aria-labelledby={`${ids}-heading`}>
       <h2
         id={`${ids}-heading`}
         ref={headingRef}
@@ -426,6 +506,7 @@ function ReviewStep({
               transition={{ duration: 0.2, ease: "easeOut", delay: reduceMotion ? 0 : i * 0.08 }}
             >
               <Textarea
+                data-claim={i}
                 aria-label={`Claim ${i + 1}`}
                 value={claim}
                 rows={2}
@@ -438,8 +519,9 @@ function ReviewStep({
                 type="button"
                 variant="ghost"
                 className="size-11 shrink-0"
+                data-claim-remove={i}
                 aria-label={`Remove claim ${i + 1}`}
-                onClick={() => set({ claims: draft.claims.filter((_, j) => j !== i) })}
+                onClick={() => removeClaim(i)}
               >
                 <X aria-hidden strokeWidth={1.75} />
               </Button>
@@ -450,8 +532,11 @@ function ReviewStep({
           type="button"
           variant="ghost"
           className="min-h-11 self-start"
+          data-add-claim
           disabled={draft.claims.length >= MAX_CLAIMS}
-          onClick={() => set({ claims: [...draft.claims, ""] })}
+          onClick={() =>
+            set({ claims: [...draft.claims, ""] }, `[data-claim="${draft.claims.length}"]`)
+          }
         >
           <Plus aria-hidden strokeWidth={1.75} />
           Add a claim
@@ -460,18 +545,21 @@ function ReviewStep({
 
       <ChipList
         label="Themes"
+        list="themes"
         items={draft.themes}
         disabled={saving}
-        onRemove={(i) => set({ themes: draft.themes.filter((_, j) => j !== i) })}
+        onRemove={(i) => removeChip("themes", i)}
       />
       <ChipList
         label="Constraints"
+        list="constraints"
         items={draft.constraints}
         disabled={saving}
-        onRemove={(i) => set({ constraints: draft.constraints.filter((_, j) => j !== i) })}
+        onRemove={(i) => removeChip("constraints", i)}
       />
 
       <Button
+        data-start
         className="min-h-11 self-start px-5 text-base"
         disabled={saving}
         onClick={() => onStart(draft)}
@@ -485,11 +573,13 @@ function ReviewStep({
 
 function ChipList({
   label,
+  list,
   items,
   disabled,
   onRemove,
 }: {
   label: string;
+  list: string;
   items: string[];
   disabled: boolean;
   onRemove: (index: number) => void;
@@ -504,12 +594,14 @@ function ChipList({
             {/* Long themes wrap inside the chip instead of pushing the page wider than a phone. */}
             <Badge
               variant="secondary"
-              className="h-auto max-w-full justify-start gap-1 rounded-full py-0.5 pr-0.5 pl-3 text-left text-sm whitespace-normal"
+              // overflow-visible: the badge clips by default, which cut off the remove button's focus ring.
+              className="h-auto max-w-full justify-start gap-1 overflow-visible rounded-full py-0.5 pr-0.5 pl-3 text-left text-sm whitespace-normal"
             >
               <span className="min-w-0 break-words">{item}</span>
               <Button
                 type="button"
                 variant="ghost"
+                data-chip-remove={`${list}-${i}`}
                 className="size-11 rounded-full"
                 aria-label={`Remove ${label.toLowerCase().replace(/s$/, "")} ${item}`}
                 disabled={disabled}
