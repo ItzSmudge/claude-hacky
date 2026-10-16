@@ -9,7 +9,7 @@ const MAX_KEY = 100;
 
 /** `<projectId>/<random>-<safe name>`; the `briefs` bucket policies key off the first folder. */
 export function briefStoragePath(projectId: string, filename: string, random: string): string {
-  const name = filename.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const name = filename.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
   const extension = /\.([a-z0-9]+)$/.exec(name)?.[1];
   const stem = (extension ? name.slice(0, -extension.length - 1) : name)
     .replace(/[^a-z0-9._-]+/g, "-")
