@@ -1,39 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { updateProjectRequestSchema, type ApiError, type Project } from "@/lib/api-schemas";
+import { updateProjectRequestSchema, type Project } from "@/lib/api-schemas";
 import { PROJECT_COLUMNS, toProject } from "@/components/projects/project-list";
-import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { authorise, error } from "./authorise";
 
 // Owner: projects (PR-02). Writes run as the user, so RLS decides: only owners rename/delete.
 
 type Ctx = RouteContext<"/api/projects/[projectId]">;
-
-const error = (status: number, message: string, details?: unknown) =>
-  NextResponse.json<ApiError>(
-    details === undefined ? { error: message } : { error: message, details },
-    { status },
-  );
-
-/** The project (as the caller sees it under RLS) and the caller's id, or an error response. */
-async function authorise(ctx: Ctx) {
-  const { projectId } = await ctx.params;
-  if (!z.uuid().safeParse(projectId).success) return { response: error(400, "Invalid project id") };
-  const supabase = await getSupabaseServerClient();
-  const { data } = await supabase.auth.getClaims();
-  const userId = data?.claims.sub;
-  if (!userId) return { response: error(401, "Sign in to manage projects") };
-  const { data: project, error: err } = await supabase
-    .from("projects")
-    .select("id, owner_id")
-    .eq("id", projectId)
-    .maybeSingle();
-  if (err) {
-    console.error("[projects] read failed", err.code, err.message);
-    return { response: error(500, "Couldn't load the project") };
-  }
-  if (!project) return { response: error(404, "Project not found") };
-  return { supabase, projectId, userId, isOwner: project.owner_id === userId };
-}
 
 /** Rename (or edit query/context). Owner only. */
 export async function PATCH(request: Request, ctx: Ctx) {
