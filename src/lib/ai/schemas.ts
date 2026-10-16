@@ -160,3 +160,11 @@ export const projectRelationsSchema = z.object({
   ),
 });
 export type ProjectRelations = z.infer<typeof projectRelationsSchema>;
+
+/** RK-03: the SMART model's rewording of one ranking insight. Code supplies the pattern. */
+export const insightOutputSchema = z.object({
+  sentence: words(18, { noLinks: true }).describe(
+    "One friendly sentence of at most 18 words that names the pattern and ends with a short question offering the action.",
+  ),
+});
+export type InsightOutput = z.infer<typeof insightOutputSchema>;

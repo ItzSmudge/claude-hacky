@@ -26,3 +26,5 @@ export {
   type ProjectRelations,
   type RelationsOutput,
 } from "./schemas";
+export { phraseInsight, type InsightPrompt } from "./insight";
+export { insightOutputSchema, type InsightOutput } from "./schemas";
