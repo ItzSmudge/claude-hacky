@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PaperFeature } from "./features";
 import {
   applyDeckFilters,
+  featurePhrase,
   findInsight,
   NO_FILTERS,
   templateSentence,
@@ -101,6 +102,18 @@ describe("templateSentence", () => {
         total: 3,
       }),
     ).toBe("You keep skipping papers on Social Media Use. Hide them?");
+  });
+});
+
+describe("featurePhrase", () => {
+  it("reads naturally for every kind", () => {
+    expect(featurePhrase(f("year:recent", "Last 3 years"))).toBe("papers from the last 3 years");
+    expect(featurePhrase(f("year:older", "Older than 10 years"))).toBe(
+      "papers older than 10 years",
+    );
+    expect(featurePhrase(f("year:3-5-years", "3–5 years old"))).toBe("papers 3–5 years old");
+    expect(featurePhrase(f("cited:rarely", "Rarely cited"))).toBe("papers that are rarely cited");
+    expect(featurePhrase(f("venue:preprint", "Preprints"))).toBe("preprints");
   });
 });
 

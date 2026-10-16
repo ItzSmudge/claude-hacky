@@ -19,29 +19,56 @@ const NONE: ActiveFilter[] = [];
 const memory = new Map<string, ActiveFilter[]>();
 const listeners = new Set<() => void>();
 const storageKey = (projectId: string) => `papercut:deck-filters:${projectId}`;
+const offeredKey = (projectId: string) => `papercut:deck-insights-offered:${projectId}`;
+
+function readStorage<T>(key: string, schema: z.ZodType<T>, fallback: T): T {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? schema.catch(fallback).parse(JSON.parse(raw)) : fallback;
+  } catch {
+    // Private mode, blocked storage or bad JSON.
+    return fallback;
+  }
+}
+
+function writeStorage(key: string, value: unknown) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Still applies for this visit.
+  }
+}
 
 function load(projectId: string): ActiveFilter[] {
   const known = memory.get(projectId);
   if (known) return known;
-  let value = NONE;
-  try {
-    const raw = window.localStorage.getItem(storageKey(projectId));
-    if (raw) value = z.array(activeFilterSchema).catch(NONE).parse(JSON.parse(raw));
-  } catch {
-    // Private mode, blocked storage or bad JSON: start with no filters.
-  }
+  const value = readStorage(storageKey(projectId), z.array(activeFilterSchema), NONE);
   memory.set(projectId, value);
   return value;
 }
 
 function save(projectId: string, value: ActiveFilter[]) {
   memory.set(projectId, value);
-  try {
-    window.localStorage.setItem(storageKey(projectId), JSON.stringify(value));
-  } catch {
-    // Still applies for this visit.
-  }
+  writeStorage(storageKey(projectId), value);
   for (const listener of listeners) listener();
+}
+
+const offeredMemory = new Map<string, Set<string>>();
+
+/** Feature ids already offered in an insight here, so a reload doesn't ask again. Client only. */
+export function offeredInsights(projectId: string): Set<string> {
+  let known = offeredMemory.get(projectId);
+  if (!known) {
+    known = new Set(readStorage(offeredKey(projectId), z.array(z.string()), []));
+    offeredMemory.set(projectId, known);
+  }
+  return known;
+}
+
+export function markOffered(projectId: string, featureId: string) {
+  const offered = offeredInsights(projectId);
+  offered.add(featureId);
+  writeStorage(offeredKey(projectId), [...offered]);
 }
 
 const subscribe = (listener: () => void) => {

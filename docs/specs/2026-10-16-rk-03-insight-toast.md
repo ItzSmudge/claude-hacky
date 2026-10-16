@@ -34,7 +34,10 @@ swipes between insights.
 
 ## Edge cases
 
-- Undoing a swipe can make a pattern disappear; nothing already shown is retracted.
+- Undoing a swipe can make a pattern disappear; nothing already shown is retracted. A card
+  brought back by Undo stays even when a filter would hide it.
+- Only a swipe made this visit can bring up an insight, and offered features are remembered
+  per project (localStorage), so a reload doesn't ask again.
 - Hiding everything left in the deck shows the normal empty/load-more state, and the chip
   still offers "Show again".
 - Nothing is persisted server-side, the swipes table is unchanged, and teammates aren't affected.

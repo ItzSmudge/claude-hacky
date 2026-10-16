@@ -81,8 +81,14 @@ export function featurePhrase({ kind, label }: PaperFeature): string {
     case "keyword":
       return `papers about “${label}”`;
     case "year":
+      // "Last 3 years" → "papers from the last 3 years"; "3–5 years old" → "papers 3–5 years old".
+      return label.startsWith("Last")
+        ? `papers from the l${label.slice(1)}`
+        : `papers ${label.charAt(0).toLowerCase()}${label.slice(1)}`;
     case "cited":
-      return `papers that are ${label.charAt(0).toLowerCase()}${label.slice(1)}`;
+      return label === "Cited"
+        ? "papers that are cited"
+        : `papers that are ${label.charAt(0).toLowerCase()}${label.slice(1)}`;
   }
 }
 
@@ -107,6 +113,6 @@ export function applyDeckFilters<T>(
   const hidden = new Set(hide);
   const boosted = new Set(boost);
   const shown = items.filter((item) => !featuresOf(item).some((id) => hidden.has(id)));
-  const front = shown.filter((item) => featuresOf(item).some((id) => boosted.has(id)));
-  return front.length ? [...front, ...shown.filter((item) => !front.includes(item))] : shown;
+  const front = new Set(shown.filter((item) => featuresOf(item).some((id) => boosted.has(id))));
+  return front.size ? [...front, ...shown.filter((item) => !front.has(item))] : shown;
 }
