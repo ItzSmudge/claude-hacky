@@ -73,11 +73,15 @@ export function ExportPanel({ projectId, citeKeys }: { projectId: string; citeKe
 
   return (
     <section
-      id="export"
       aria-labelledby="export-heading"
-      className="flex scroll-mt-4 flex-col gap-5 rounded-2xl border border-border bg-card p-5 shadow-paper md:p-6"
+      className="flex flex-col gap-5 rounded-2xl border border-border bg-card p-5 shadow-paper md:p-6"
     >
-      <h2 id="export-heading" className="font-display text-xl font-semibold text-primary">
+      {/* tabIndex -1: the library's "Jump to export" link moves focus here, so screen readers follow. */}
+      <h2
+        id="export-heading"
+        tabIndex={-1}
+        className="scroll-mt-10 font-display text-xl font-semibold text-primary outline-none"
+      >
         Export
       </h2>
       <CopyCite keys={citeKeys} />

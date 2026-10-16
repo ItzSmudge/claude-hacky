@@ -70,11 +70,11 @@ async function Library({ params }: Pick<PageProps<"/app/p/[projectId]/library">,
         {heading}
         {papers.length > 0 && (
           <p className="text-muted-foreground">
-            {`${papers.length} ${papers.length === 1 ? "paper" : "papers"} saved. `}
+            {`${papers.length} ${papers.length === 1 ? "paper" : "papers"} saved.`}{" "}
             {/* The export sits below every card: one tap to it for the demo's last step. */}
             <a
-              href="#export"
-              className="rounded font-medium text-primary underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden"
+              href="#export-heading"
+              className="-my-2.5 inline-block rounded py-2.5 font-medium text-primary underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden"
             >
               Jump to export
             </a>
