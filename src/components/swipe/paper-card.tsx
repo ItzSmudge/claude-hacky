@@ -1,4 +1,6 @@
 import { ChevronUp } from "lucide-react";
+import { ReadAloud } from "@/components/a11y/read-aloud";
+import { cardScript } from "@/components/a11y/speech";
 import { cn } from "@/lib/utils";
 import type { Credibility, Paper, PaperAnalysis, ProjectContext } from "@/types/domain";
 import { clampRelevance, formatMeta, resolveStances } from "./card-format";
@@ -102,15 +104,28 @@ export function PaperCard({
       </div>
 
       {onDetails ? (
-        <button
-          type="button"
-          onClick={onDetails}
-          aria-keyshortcuts="ArrowUp"
-          className="mx-auto flex min-h-11 items-center gap-1 rounded-xl px-4 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card focus-visible:outline-none"
-        >
-          <ChevronUp className="size-4" strokeWidth={1.75} aria-hidden />
-          Details
-        </button>
+        <div className="flex items-center justify-between gap-2">
+          {/* AX-02: only the top card (the one with Details) can be read aloud. */}
+          <ReadAloud
+            parts={cardScript({ title: paper.title, whyItMatters, overview })}
+            what="this paper"
+          />
+          <button
+            type="button"
+            onClick={onDetails}
+            aria-keyshortcuts="ArrowUp"
+            className="flex min-h-11 items-center gap-1 rounded-xl px-4 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card focus-visible:outline-none"
+          >
+            <ChevronUp className="size-4" strokeWidth={1.75} aria-hidden />
+            Details
+            <kbd
+              aria-hidden
+              className="ml-1 hidden rounded border border-border px-1 font-mono text-xs md:inline"
+            >
+              ↑
+            </kbd>
+          </button>
+        </div>
       ) : (
         <p className="flex items-center justify-center gap-1 text-sm text-muted-foreground">
           <ChevronUp className="size-4" strokeWidth={1.75} aria-hidden />
