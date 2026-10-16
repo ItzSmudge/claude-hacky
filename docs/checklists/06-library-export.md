@@ -8,4 +8,4 @@
 - [x] LB-01 ⚡ Library page: saved papers grouped by `useAs` / stance, remove/restore
 - [x] LB-02 (PR #11) ⚡ BibTeX: doi.org content negotiation → fallback code-built entry; stable cite keys (`lastnameYEARword`) + tests
 - [x] LB-03 (PR #12) ⚡ LaTeX `thebibliography` + `.bib` download + "copy \cite{}" ; CSV ; Markdown reading list
-- [~] @Claude ccr-4f51b2be-ref8h1 LB-04 Relations view UI (consumes AI-05)
+- [~] @Claude feat/library-relations-view LB-04 Relations view UI (consumes AI-05)
