@@ -2,42 +2,62 @@
 
 export type VoiceCommand = "save" | "skip" | "undo" | "read" | "why" | "details" | "stop";
 
-/** Phrases per command, longest first within each so "go back" beats "back". */
-const PHRASES: [VoiceCommand, string[]][] = [
-  ["why", ["why does it matter", "why it matters", "why"]],
-  ["undo", ["go back", "undo", "back"]],
-  ["details", ["show more", "details", "more"]],
-  ["read", ["read it out", "read it", "read", "listen"]],
-  ["stop", ["be quiet", "stop", "quiet"]],
-  ["save", ["save it", "save", "keep", "yes"]],
-  ["skip", ["next one", "skip", "pass", "next", "no"]],
-];
+/**
+ * Whole utterances only. Single everyday words ("yes", "no", "next", "more", "back") are left out
+ * on purpose: in a group demo, or with a screen reader on the speakers, they come up in normal
+ * speech and would act on cards nobody meant to touch.
+ */
+const PHRASES: Record<string, VoiceCommand> = {
+  save: "save",
+  "save it": "save",
+  "save this": "save",
+  skip: "skip",
+  "skip it": "skip",
+  "skip this": "skip",
+  undo: "undo",
+  "go back": "undo",
+  read: "read",
+  "read it": "read",
+  "read it out": "read",
+  "read this": "read",
+  listen: "read",
+  why: "why",
+  "why it matters": "why",
+  "why does it matter": "why",
+  details: "details",
+  "show details": "details",
+  "more details": "details",
+  stop: "stop",
+  "stop reading": "stop",
+};
+
+/** Politeness and hesitation people wrap commands in: "um, save please". */
+const FILLER = new Set([
+  "um",
+  "uh",
+  "er",
+  "erm",
+  "please",
+  "ok",
+  "okay",
+  "now",
+  "the",
+  "card",
+  "paper",
+]);
 
 /**
- * The last command spoken in `heard` (people correct themselves: "skip, no wait, save"), matched
- * on whole words only, so "saved" or "skipping" in normal speech don't act. Null if none.
+ * The command if the whole utterance is one (after dropping filler words), else null. So "save"
+ * and "um, save it please" act, but "I'd save that one" or "saved paper" don't.
  */
 export function matchCommand(heard: string): VoiceCommand | null {
-  const text = ` ${heard
+  const words = heard
     .toLowerCase()
     .replace(/[^a-z\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()} `;
-  if (text.trim() === "") return null;
-  let best: { command: VoiceCommand; at: number; length: number } | null = null;
-  for (const [command, phrases] of PHRASES) {
-    for (const phrase of phrases) {
-      const at = text.lastIndexOf(` ${phrase} `);
-      if (at === -1) continue;
-      // Later wins; at the same end position, the longer phrase wins ("why does it matter").
-      const end = at + phrase.length;
-      const bestEnd = best ? best.at + best.length : -1;
-      if (!best || end > bestEnd || (end === bestEnd && phrase.length > best.length)) {
-        best = { command, at, length: phrase.length };
-      }
-    }
-  }
-  return best?.command ?? null;
+    .split(/\s+/)
+    .filter((w) => w && !FILLER.has(w));
+  if (words.length === 0 || words.length > 4) return null;
+  return PHRASES[words.join(" ")] ?? null;
 }
 
-export const VOICE_HELP = "Say save, skip, undo, read, why, details or stop.";
+export const VOICE_COMMANDS = "save · skip · undo · read · why · details · stop";

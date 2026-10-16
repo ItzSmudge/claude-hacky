@@ -54,8 +54,8 @@ export interface SwipeDeckHandle {
   focus: () => void;
   /** The top card's paper id, or null when the deck is empty (AX-03 voice commands). */
   topId: () => string | null;
-  /** Same as the Undo button / Z key. */
-  undo: () => void;
+  /** Same as the Undo button / Z key; false when there's nothing to undo. */
+  undo: () => boolean;
   /** Same as the Details button / up arrow. */
   details: () => void;
 }
@@ -315,7 +315,9 @@ export function SwipeDeck({
     focus: () => regionRef.current?.focus(),
     topId: () => topId,
     undo: () => {
-      if (canUndo(deck)) undo();
+      if (!canUndo(deck) || busy.current) return false;
+      undo();
+      return true;
     },
     details: () => details(),
   }));

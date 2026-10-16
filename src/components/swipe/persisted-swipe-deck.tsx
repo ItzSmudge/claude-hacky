@@ -193,8 +193,7 @@ export function PersistedSwipeDeck({
       case "skip":
         return !!topId && handle.decide(topId, command);
       case "undo":
-        handle.undo();
-        return true;
+        return handle.undo();
       case "details":
         if (!topId) return false;
         handle.details();
