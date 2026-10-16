@@ -11,7 +11,8 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { SwipeDecision } from "@/types/domain";
 
 // Owner: swipe (SW-*). Papers come from the queue (SW-04), with fixtures as a fallback until
-// /api/analyse exists (AI-04); swipes persist via SW-05; earlier swipes seed the ranking (RK-02).
+// /api/analyse exists (AI-04); swipes persist via SW-05; earlier swipes seed the ranking (RK-02),
+// teammates' too (RK-04).
 export const metadata: Metadata = { title: "Deck" };
 
 export default function DeckPage({ params }: PageProps<"/app/p/[projectId]">) {
@@ -33,19 +34,33 @@ async function Deck({ params }: Pick<PageProps<"/app/p/[projectId]">, "params">)
   // Request time: one clock for year features on server (history) and client (deck items).
   await connection();
   const now = new Date().toISOString();
-  const [history, project] = await Promise.all([swipeHistory(projectId), projectInfo(projectId)]);
+  const [{ userId, mine: history, team }, project] = await Promise.all([
+    swipeHistory(projectId),
+    projectInfo(projectId),
+  ]);
   const swiped = new Set(history.map((s) => s.paperId));
   // Features of papers already decided, so a reload resumes the learnt order.
   // TODO(SW-04): look these up in the `papers` cache once the deck isn't fixture-only.
-  const initialHistory: SwipeSample[] = history.flatMap(({ paperId, decision }) => {
+  const featuresOf = (paperId: string) => {
     const entry = fixturePapers.find((item) => item.paper.id === paperId);
-    if (!entry) return [];
+    if (!entry) return undefined;
     const features = extractFeatures(entry.paper, {
       credibility: entry.credibility,
       now: new Date(now),
     });
-    return [{ features: features.map((f) => f.id), decision }];
+    return features.map((f) => f.id);
+  };
+  const initialHistory: SwipeSample[] = history.flatMap(({ paperId, decision }) => {
+    const features = featuresOf(paperId);
+    return features ? [{ features, decision }] : [];
   });
+  // RK-04: my decided papers have left the deck, but a teammate's live swipe on one still counts.
+  const decidedFeatures = Object.fromEntries(
+    [...swiped].flatMap((id) => {
+      const features = featuresOf(id);
+      return features ? [[id, features]] : [];
+    }),
+  );
   return (
     <PersistedSwipeDeck
       key={projectId}
@@ -54,6 +69,9 @@ async function Deck({ params }: Pick<PageProps<"/app/p/[projectId]">, "params">)
       swipedIds={[...swiped]}
       fallbackItems={fixturePapers.filter((item) => !swiped.has(item.paper.id))}
       initialHistory={initialHistory}
+      userId={userId}
+      initialTeam={team}
+      decidedFeatures={decidedFeatures}
       now={now}
       claims={project.claims}
       libraryHref={`/app/p/${projectId}/library`}
@@ -91,30 +109,42 @@ async function projectInfo(
   };
 }
 
-/** The signed-in user's swipes here, oldest first, so a reload resumes the deck. Empty on any failure. */
+type SwipeRow = { userId: string; paperId: string; decision: SwipeDecision };
+
+/**
+ * Everyone's swipes here, oldest first: mine resume the deck, teammates' rank it too (RK-04).
+ * Empty on any failure.
+ */
 async function swipeHistory(
   projectId: string,
-): Promise<{ paperId: string; decision: SwipeDecision }[]> {
-  if (!z.uuid().safeParse(projectId).success) return [];
+): Promise<{ userId?: string; mine: Omit<SwipeRow, "userId">[]; team: SwipeRow[] }> {
+  const none = { mine: [], team: [] };
+  if (!z.uuid().safeParse(projectId).success) return none;
   // Request time only: supabase-js reads the clock to check token expiry.
   await connection();
   const supabase = await getSupabaseServerClient();
   const { data: auth } = await supabase.auth.getClaims();
   const userId = auth?.claims.sub;
-  if (!userId) return [];
+  if (!userId) return none;
   const { data, error } = await supabase
     .from("swipes")
-    .select("paper_id, decision")
+    .select("paper_id, user_id, decision")
     .eq("project_id", projectId)
-    .eq("user_id", userId)
     .order("created_at", { ascending: true });
   if (error) {
     console.error("[deck] reading swipes failed", error.code, error.message);
-    return [];
+    return { userId, ...none };
   }
-  return data.flatMap((row) =>
+  const rows: SwipeRow[] = data.flatMap((row) =>
     row.decision === "save" || row.decision === "skip"
-      ? [{ paperId: row.paper_id, decision: row.decision }]
+      ? [{ userId: row.user_id, paperId: row.paper_id, decision: row.decision }]
       : [],
   );
+  return {
+    userId,
+    mine: rows
+      .filter((r) => r.userId === userId)
+      .map(({ paperId, decision }) => ({ paperId, decision })),
+    team: rows.filter((r) => r.userId !== userId),
+  };
 }
