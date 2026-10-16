@@ -17,6 +17,9 @@ const FAILURE: Record<number, string> = {
   404: "This project isn't available any more.",
 };
 
+/** Errors whose message is written for students; anything else (network, parse) gets the default. */
+class FriendlyError extends Error {}
+
 type State =
   | { kind: "idle" }
   | { kind: "loading" }
@@ -45,6 +48,7 @@ export function RelationsPanel({
   useEffect(() => () => abort.current?.abort(), []);
 
   async function run() {
+    if (state.kind === "loading") return;
     abort.current?.abort();
     const controller = new AbortController();
     abort.current = controller;
@@ -55,25 +59,22 @@ export function RelationsPanel({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId }),
-        signal: controller.signal,
+        // The route gives up at 55 s; don't leave the student waiting on a hung connection.
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(65_000)]),
       });
-      if (!res.ok) throw new Error(FAILURE[res.status] ?? "");
+      if (!res.ok) throw new FriendlyError(FAILURE[res.status]);
       const body: unknown = await res.json();
       const parsed = projectRelationsSchema.safeParse(
         (body as { relations?: unknown } | null)?.relations,
       );
-      if (!parsed.success) throw new Error("");
+      if (!parsed.success) throw new FriendlyError();
       const result = resolveRelations(parsed.data, papers, claims);
       setState({ kind: "done", result });
-      setStatus(
-        result.methods.length || result.pairs.length || result.debated.length
-          ? `Found ${plural(result.debated.length, "debated claim")}, ${plural(result.methods.length, "shared method")} and ${plural(result.pairs.length, "pair")} to read together.`
-          : "No clear links found yet.",
-      );
+      setStatus(summary(result));
     } catch (err) {
       if (controller.signal.aborted) return;
       const message =
-        (err instanceof Error && err.message) ||
+        (err instanceof FriendlyError && err.message) ||
         "Couldn't work out how these papers connect. Try again in a moment.";
       setState({ kind: "error", message });
       setStatus(message);
@@ -82,11 +83,17 @@ export function RelationsPanel({
 
   const loading = state.kind === "loading";
   const headingId = `${uid}-heading`;
+  const action = {
+    idle: "Show how these connect",
+    loading: "Reading your papers…",
+    error: "Try again",
+    done: "Refresh",
+  }[state.kind];
+  const ActionIcon = state.kind === "done" ? RefreshCw : Combine;
 
   return (
     <section
       aria-labelledby={headingId}
-      aria-busy={loading}
       className="flex flex-col gap-5 rounded-2xl border border-border bg-card p-5 shadow-paper md:p-6 hc:border-2"
     >
       <header className="flex flex-col gap-1">
@@ -99,44 +106,50 @@ export function RelationsPanel({
         </p>
       </header>
 
+      {/* Outside the aria-busy region so the loading message is read straight away. */}
       <p role="status" className="sr-only">
         {status}
       </p>
 
-      {state.kind === "idle" || state.kind === "error" ? (
-        <div className="flex flex-col items-start gap-3">
-          {state.kind === "error" ? <p>{state.message}</p> : null}
-          <Button
-            type="button"
-            variant="secondary"
-            size="lg"
-            onClick={run}
-            className={`h-11 rounded-xl px-4 ${FOCUS_RING}`}
-          >
-            <Combine className="size-5" strokeWidth={1.75} aria-hidden />
-            {state.kind === "error" ? "Try again" : "Show how these connect"}
-          </Button>
-        </div>
-      ) : null}
+      {state.kind === "error" ? <p id={`${uid}-error`}>{state.message}</p> : null}
 
-      {loading ? <RelationsSkeleton /> : null}
+      {/* One button in every state, so keyboard focus never drops to the page when it changes. */}
+      <Button
+        type="button"
+        variant="secondary"
+        size="lg"
+        onClick={run}
+        aria-disabled={loading}
+        aria-describedby={state.kind === "error" ? `${uid}-error` : undefined}
+        className={`h-11 self-start rounded-xl px-4 aria-disabled:opacity-70 hc:border-2 hc:border-foreground ${FOCUS_RING}`}
+      >
+        <ActionIcon
+          className={`size-5 ${loading ? "animate-pulse motion-reduce:animate-none" : ""}`}
+          strokeWidth={1.75}
+          aria-hidden
+        />
+        {action}
+      </Button>
 
-      {state.kind === "done" ? (
-        <>
-          <RelationsResult result={state.result} uid={uid} />
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={run}
-            className={`h-11 self-start rounded-xl px-3 text-primary ${FOCUS_RING}`}
-          >
-            <RefreshCw className="size-4" strokeWidth={1.75} aria-hidden />
-            Refresh
-          </Button>
-        </>
-      ) : null}
+      <div aria-busy={loading} className="empty:hidden">
+        {loading ? <RelationsSkeleton /> : null}
+        {state.kind === "done" ? <RelationsResult result={state.result} uid={uid} /> : null}
+      </div>
     </section>
   );
+}
+
+/** What the status region says once results are in; zero counts are left out. */
+function summary({ debated, oneSided, methods, pairs }: ResolvedRelations): string {
+  const parts = [
+    debated.length && plural(debated.length, "debated claim"),
+    oneSided.length && plural(oneSided.length, "one-sided claim"),
+    methods.length && plural(methods.length, "shared method"),
+    pairs.length && `${plural(pairs.length, "pair")} to read side by side`,
+  ].filter((part): part is string => !!part);
+  if (!parts.length) return "No clear links between these papers yet.";
+  const last = parts.pop()!;
+  return `Found ${parts.length ? `${parts.join(", ")} and ${last}` : last}.`;
 }
 
 function RelationsResult({ result, uid }: { result: ResolvedRelations; uid: string }) {
@@ -156,7 +169,7 @@ function RelationsResult({ result, uid }: { result: ResolvedRelations; uid: stri
             <ul className="flex flex-col gap-4">
               {debated.map(({ claim, supports, challenges }) => (
                 <li key={claim.id} className="flex flex-col gap-2">
-                  <p className="font-display text-base leading-snug">{claim.text}</p>
+                  <h4 className="font-display text-base leading-snug">{claim.text}</h4>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Side
                       label="Supports"
@@ -198,11 +211,15 @@ function RelationsResult({ result, uid }: { result: ResolvedRelations; uid: stri
       {methods.length ? (
         <Block id={`${uid}-methods`} title="Shared methods">
           <ul className="flex flex-col gap-4">
-            {methods.map(({ label, papers }) => (
-              <li key={label} className="flex flex-col gap-1.5">
+            {methods.map(({ label, papers }, i) => (
+              <li key={`${i}-${label}`} className="flex flex-col gap-1.5">
                 <p className="flex items-center gap-1.5 font-medium">
-                  <FlaskConical className="size-4 text-primary" strokeWidth={1.75} aria-hidden />
-                  {label}
+                  <FlaskConical
+                    className="size-4 shrink-0 text-primary"
+                    strokeWidth={1.75}
+                    aria-hidden
+                  />
+                  <span className="min-w-0 break-words">{label}</span>
                 </p>
                 <PaperList papers={papers} />
               </li>
@@ -214,13 +231,13 @@ function RelationsResult({ result, uid }: { result: ResolvedRelations; uid: stri
       {pairs.length ? (
         <Block id={`${uid}-pairs`} title="Read side by side">
           <ul className="flex flex-col gap-3">
-            {pairs.map(({ a, b, kind, note }) => (
+            {pairs.map(({ a, b, kind, note }, i) => (
               <li
-                key={`${a.id}|${b.id}`}
+                key={`${i}-${a.id}|${b.id}`}
                 className="flex flex-col gap-2 rounded-xl border border-border bg-background p-4 hc:border-2"
               >
                 <p
-                  className={`flex items-center gap-1.5 text-sm font-medium ${kind === "contrast" ? "text-challenges" : "text-supports"}`}
+                  className={`flex items-center gap-1.5 text-sm font-medium ${kind === "contrast" ? "text-challenges" : "text-primary"}`}
                 >
                   {kind === "contrast" ? (
                     <Swords className="size-4" strokeWidth={1.75} aria-hidden />
@@ -250,7 +267,7 @@ function RelationsResult({ result, uid }: { result: ResolvedRelations; uid: stri
 
 function Block({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3">
       <h3
         id={id}
         className="border-b border-primary/30 pb-1.5 font-display text-lg font-semibold text-primary hc:border-primary"
@@ -258,7 +275,7 @@ function Block({ id, title, children }: { id: string; title: string; children: R
         {title}
       </h3>
       {children}
-    </section>
+    </div>
   );
 }
 
@@ -298,7 +315,13 @@ function PaperList({ papers }: { papers: RelationPaper[] }) {
 
 function PairPaper({ paper, position }: { paper: RelationPaper; position: string }) {
   return (
-    <p className="min-w-0 flex-1 text-sm">
+    <p className="flex min-w-0 flex-1 gap-2 text-sm">
+      <span
+        aria-hidden
+        className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground"
+      >
+        {position.startsWith("First") ? 1 : 2}
+      </span>
       <span className="sr-only">{position}: </span>
       <PaperLabel paper={paper} />
     </p>
@@ -307,7 +330,7 @@ function PairPaper({ paper, position }: { paper: RelationPaper; position: string
 
 function PaperLabel({ paper }: { paper: RelationPaper }) {
   return (
-    <span className="break-words">
+    <span className="min-w-0 break-words">
       {paper.title}
       {paper.year ? <span className="text-muted-foreground"> ({paper.year})</span> : null}{" "}
       <code className="font-mono text-xs text-muted-foreground">{paper.citeKey}</code>
