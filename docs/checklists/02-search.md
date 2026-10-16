@@ -6,7 +6,7 @@
 **Can start with fixtures?** Yes — fixtures show the target `Paper` shape (`src/fixtures/papers.json`)
 
 - [x] SE-01 (PR #15) ⚡ OpenAlex client (search, abstract inverted-index → text, topics, cited_by_count, type) + tests
-- [~] @yash-joshi5379 feat/search-semantic-scholar SE-02 ⚡ Semantic Scholar client (search, TLDR) + tests, graceful 429 handling
+- [x] SE-02 (PR #36) ⚡ Semantic Scholar client (search, TLDR) + tests, graceful 429 handling
 - [ ] SE-03 Normaliser + DOI dedupe + merge (prefer S2 TLDR, OpenAlex topics)
 - [x] SE-04 ⚡ Credibility function + tests (replace the placeholder formula used to build fixtures, then regenerate them)
 - [x] SE-05 `/api/search` with project filters (year range, exclude terms) + cache to `papers` (service-role client)
