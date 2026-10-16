@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
-import type { ApiError } from "@/lib/api-schemas";
-import { notImplemented } from "@/lib/http/not-implemented";
-import { loadProjects, type ProjectListItem } from "@/components/projects/project-list";
+import { z } from "zod";
+import { createProjectRequestSchema, type ApiError, type Project } from "@/lib/api-schemas";
+import {
+  loadProjects,
+  PROJECT_COLUMNS,
+  toProject,
+  type ProjectListItem,
+} from "@/components/projects/project-list";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 // Owner: projects (PR-01, PR-02)
@@ -21,6 +26,29 @@ export async function GET() {
   return NextResponse.json<{ projects: ProjectListItem[] }>({ projects });
 }
 
-export async function POST(_request: Request) {
-  return notImplemented("PR-01");
+/** Creates a project owned by the caller (RLS; owner membership and join code come from the DB). */
+export async function POST(request: Request) {
+  const supabase = await getSupabaseServerClient();
+  const { data: auth } = await supabase.auth.getClaims();
+  if (!auth?.claims.sub)
+    return NextResponse.json<ApiError>({ error: "Sign in to start a project" }, { status: 401 });
+
+  const body = createProjectRequestSchema.safeParse(await request.json().catch(() => null));
+  if (!body.success) {
+    return NextResponse.json<ApiError>(
+      { error: "Invalid project", details: z.treeifyError(body.error) },
+      { status: 400 },
+    );
+  }
+
+  const { data, error } = await supabase
+    .from("projects")
+    .insert(body.data)
+    .select(PROJECT_COLUMNS)
+    .single();
+  if (error) {
+    console.error("[projects] insert failed", error.code, error.message);
+    return NextResponse.json<ApiError>({ error: "Couldn't create the project" }, { status: 500 });
+  }
+  return NextResponse.json<Project>(toProject(data), { status: 201 });
 }
