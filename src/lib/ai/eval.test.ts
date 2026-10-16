@@ -31,6 +31,13 @@ const check = (analysis: PaperAnalysis, p: Paper = paper, repaired = false) =>
   checkAnalysis(p, analysis, { others, context, repaired });
 
 describe("checkAnalysis", () => {
+  it.each(["Teens who used it more were,", "It compared heavy and", "Findings were mixed;"])(
+    "fails on text that ends mid-clause: %j",
+    (text) => {
+      expect(check(good({ whyItMatters: text })).failures.join(" ")).toMatch(/mid-clause/i);
+    },
+  );
+
   it("passes a grounded analysis", () => {
     expect(check(good())).toEqual({ failures: [], warnings: [] });
   });
