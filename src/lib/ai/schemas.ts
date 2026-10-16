@@ -22,14 +22,19 @@ const DOI = /\b10\.\d{4,9}\/\S/;
  * express a word count, so zod enforces it and the description tells the model the limit up
  * front (avoiding a repair call).
  */
-export const words = (max: number, { noLinks = false }: { noLinks?: boolean } = {}) =>
+export const words = (
+  max: number,
+  { noLinks = false, slack = 1 }: { noLinks?: boolean; slack?: number } = {},
+) =>
   z
     .string()
     .trim()
     .min(1, "Must not be empty.")
     .superRefine((text, ctx) => {
       const n = countWords(text);
-      if (n > max)
+      // `slack` > 1: accept a slightly long reply (the model still sees `max`) and let code fit it
+      // to the exact limit afterwards, instead of failing the whole response (see fit-words.ts).
+      if (n > Math.floor(max * slack))
         ctx.addIssue({ code: "custom", message: `Use at most ${max} words (got ${n}).` });
       if (noLinks && (LINK.test(text) || DOI.test(text)))
         ctx.addIssue({ code: "custom", message: "Do not include links or DOIs." });
@@ -37,7 +42,7 @@ export const words = (max: number, { noLinks = false }: { noLinks?: boolean } = 
     .describe(`At most ${max} words.`);
 
 /** Like `words`, but tells the model to write "not stated" when the source is silent. */
-export const notStated = (max: number, options?: { noLinks?: boolean }) =>
+export const notStated = (max: number, options?: { noLinks?: boolean; slack?: number }) =>
   words(max, options).describe(
     `At most ${max} words, or exactly "${NOT_STATED}" if the source does not say.`,
   );
@@ -50,7 +55,8 @@ export const normaliseNotStated = (text: string) => (MISSING.test(text.trim()) ?
  * AI-03: what the FAST model returns for one paper. Code adds paperId/projectId and cleans up
  * stances (see `finalisePaperAnalysis`); nothing bibliographic is generated.
  */
-const card = { noLinks: true };
+// Card text gets slack: paper-analysis.ts fits it to the exact limit in whole sentences.
+const card = { noLinks: true, slack: 1.5 };
 export const paperAnalysisOutputSchema = z.object({
   overview: notStated(35, card).describe(
     `Plain-language summary of the abstract in at most 35 words, or exactly "${NOT_STATED}" if there is no abstract.`,

@@ -192,6 +192,108 @@ describe("analysePaper", () => {
     });
   });
 
+  describe("fitting card text to the exact word limits", () => {
+    const usage = {
+      input_tokens: 10,
+      output_tokens: 5,
+      cache_read_input_tokens: 0,
+      cache_creation_input_tokens: 0,
+    };
+    const reply = (overrides: Partial<PaperAnalysisOutput>) => ({
+      data: output(overrides),
+      model: "m",
+      repaired: false,
+      usage,
+    });
+    const rewrite = (text: string) => ({ data: { text }, model: "m", repaired: false, usage });
+    const words = (n: number, word = "teen") => Array.from({ length: n }, () => word).join(" ");
+    const longSentence = `Adolescents who used social media problematically ${words(33, "reported")} lower wellbeing.`;
+
+    it("drops whole sentences when that is enough, with no extra call", async () => {
+      askJson
+        .mockReset()
+        .mockResolvedValueOnce(
+          reply({
+            overview: `A three-wave study of 2109 adolescents. Most ${words(29)} found an effect.`,
+          }),
+        );
+      const { analysis } = await analysePaper({ paper, projectId, context });
+      expect(analysis.overview).toBe("A three-wave study of 2109 adolescents.");
+      expect(askJson).toHaveBeenCalledTimes(1);
+    });
+
+    it("asks for a concise rewrite when even one sentence is too long", async () => {
+      askJson
+        .mockReset()
+        .mockResolvedValueOnce(reply({ overview: longSentence }))
+        .mockResolvedValueOnce(
+          rewrite("Adolescents who used social media problematically reported lower wellbeing."),
+        );
+      const result = await analysePaper({ paper, projectId, context });
+      expect(result.analysis.overview).toBe(
+        "Adolescents who used social media problematically reported lower wellbeing.",
+      );
+      const request = askJson.mock.calls[1]![0];
+      expect(request.tier).toBe("fast");
+      expect(String(request.messages[0].content)).toContain(longSentence);
+      expect(request.schema.safeParse({ text: words(36) }).success).toBe(false);
+      expect(request.schema.safeParse({ text: words(35) }).success).toBe(true);
+      expect(result.usage.input_tokens).toBe(20); // both calls counted
+    });
+
+    it("uses not stated when the rewrite adds a fact", async () => {
+      askJson
+        .mockReset()
+        .mockResolvedValueOnce(reply({ overview: longSentence }))
+        .mockResolvedValueOnce(rewrite("In 2019, 312 adolescents reported lower wellbeing."));
+      const { analysis } = await analysePaper({ paper, projectId, context });
+      expect(analysis.overview).toBe("not stated");
+    });
+
+    it("uses not stated when the rewrite fails", async () => {
+      askJson
+        .mockReset()
+        .mockResolvedValueOnce(reply({ overview: longSentence }))
+        .mockRejectedValueOnce(new AiOutputError("invalid", ["text: too long"]));
+      const { analysis } = await analysePaper({ paper, projectId, context });
+      expect(analysis.overview).toBe("not stated");
+    });
+
+    it("shortens an over-long phrase field and stance note", async () => {
+      askJson
+        .mockReset()
+        .mockResolvedValueOnce(
+          reply({
+            relevanceReason: "Direct longitudinal evidence on problematic use and on wellbeing",
+            stances: [
+              {
+                claimId: "c1",
+                stance: "supports",
+                note: `Problematic use ${words(12, "predicted")} lower wellbeing`,
+              },
+              { claimId: "c2", stance: "challenges", note: "No" },
+              { claimId: "c3", stance: "neutral", note: "Maybe" },
+            ],
+          }),
+        )
+        .mockResolvedValueOnce(rewrite("Longitudinal evidence on problematic use"))
+        .mockResolvedValueOnce(rewrite("Problematic use predicted lower wellbeing"));
+      const { analysis } = await analysePaper({ paper, projectId, context });
+      expect(analysis.relevanceReason).toBe("Longitudinal evidence on problematic use");
+      expect(analysis.stances[0]!.note).toBe("Problematic use predicted lower wellbeing");
+      expect(askJson).toHaveBeenCalledTimes(3);
+    });
+
+    it("leaves fields within their limits alone", async () => {
+      askJson.mockReset().mockResolvedValueOnce(reply({}));
+      const { analysis } = await analysePaper({ paper, projectId, context });
+      expect(analysis).toEqual(
+        finalisePaperAnalysis(output(), { paperId: paper.id, projectId, context }),
+      );
+      expect(askJson).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("propagates typed AI errors", async () => {
     askJson.mockRejectedValueOnce(new AiOutputError("invalid", ["overview: too long"]));
     await expect(analysePaper({ paper, projectId, context })).rejects.toBeInstanceOf(AiOutputError);

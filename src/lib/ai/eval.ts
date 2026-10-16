@@ -5,6 +5,7 @@
  * Pure: no API calls. Used by `paper-analysis.eval.live.test.ts`.
  */
 import type { Paper, PaperAnalysis, ProjectContext } from "@/types/domain";
+import { endsMidClause } from "./fit-words";
 import { NOT_STATED, countWords } from "./schemas";
 
 export interface EvalIssues {
@@ -169,6 +170,8 @@ export function checkAnalysis(
       );
     if (ET_AL.test(text) || PAREN_CITATION.test(text))
       failures.push(`${name}: contains a citation`);
+    // Card text is fitted in whole sentences (paper-analysis.ts), never cut part-way.
+    if (endsMidClause(text)) failures.push(`${name}: ends mid-clause`);
     for (const year of text.match(YEAR) ?? [])
       if (!sourceYears.has(year)) failures.push(`${name}: year ${year} is not in the source`);
   }
