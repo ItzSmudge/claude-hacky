@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { SwipeDecision } from "@/types/domain";
 import { applyVote, summariseGroup, type GroupPaper, type Vote } from "./group-list";
+import { useLiveRefresh } from "./live-presence";
 
 const RING =
   "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card focus-visible:outline-hidden hc:focus-visible:ring-4";
@@ -40,6 +41,8 @@ export function GroupReadingList({
   initialVotes: Vote[];
 }) {
   const router = useRouter();
+  // GR-02: teammates' votes arrive while the page is open.
+  useLiveRefresh(projectId, router.refresh);
   const [votes, setVotes] = useState(initialVotes);
   // A refresh brings teammates' new votes: take them over the local (optimistic) copy.
   const [seen, setSeen] = useState(initialVotes);
