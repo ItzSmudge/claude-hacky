@@ -8,6 +8,7 @@ import type { ProjectContext, SwipeDecision } from "@/types/domain";
 import { DetailSheet } from "./detail-sheet";
 import { SwipeDeck, type DeckItem, type SwipeDeckHandle } from "./swipe-deck";
 import { classifyStatus, createSwipeSync, type SendResult, type SwipeOp } from "./swipe-sync";
+import { usePaperQueue } from "./use-paper-queue";
 
 const TITLE_MAX = 60;
 const NO_HISTORY: SwipeSample[] = [];
@@ -90,24 +91,43 @@ function createPersistence(projectId: string, titleOf: (paperId: string) => stri
 /**
  * SwipeDeck that saves every decision to Supabase (SW-05) and opens the detail sheet (SW-03).
  * Optimistic: the deck never waits; writes run in the background and a toast offers Retry.
+ * Papers come from the queue (SW-04): searched, then analysed three ahead of the top card.
  */
 export function PersistedSwipeDeck({
   projectId,
-  items,
+  query,
+  swipedIds,
   claims,
+  fallbackItems,
   libraryHref,
   initialHistory = NO_HISTORY,
   now,
 }: {
   projectId: string;
+  /** Search text for this project's papers. */
+  query: string;
+  /** Papers already decided on in earlier visits, so they never come back. */
+  swipedIds: string[];
   /** Server request time (ISO), so year features match `initialHistory`'s. */
   now?: string;
   /** Swipes from earlier visits (oldest first), so the learnt order survives a reload (RK-02). */
   initialHistory?: SwipeSample[];
-  items: DeckItem[];
   claims: ProjectContext["claims"];
+  /** Shown while /api/analyse isn't available yet (AI-04), so the demo deck never goes blank. */
+  fallbackItems?: DeckItem[];
   libraryHref?: string;
 }) {
+  // RK-02: re-rank upcoming cards from this session's swipes (plus earlier ones). Undo pops.
+  const [decisions, setDecisions] = useState<{ paperId: string; decision: SwipeDecision }[]>([]);
+  const decidedIds = useMemo(
+    () => new Set([...swipedIds, ...decisions.map((d) => d.paperId)]),
+    [swipedIds, decisions],
+  );
+
+  // SW-04: fetch papers and analyse the next few before the user reaches them.
+  const queue = usePaperQueue({ projectId, query, swipedIds, decidedIds });
+  const items = queue.analyseUnavailable ? (fallbackItems ?? []) : queue.items;
+
   // Titles for failure toasts; kept for papers that later leave `items`.
   const titles = useRef(new Map<string, string>());
   useEffect(() => {
@@ -121,8 +141,6 @@ export function PersistedSwipeDeck({
     persist.current(op);
   };
 
-  // RK-02: re-rank upcoming cards from this session's swipes (plus earlier ones). Undo pops.
-  const [decisions, setDecisions] = useState<{ paperId: string; decision: SwipeDecision }[]>([]);
   const featureIds = useMemo(
     () =>
       new Map(
@@ -163,6 +181,8 @@ export function PersistedSwipeDeck({
         items={ranked}
         claims={claims}
         libraryHref={libraryHref}
+        loading={queue.loading}
+        onLoadMore={queue.hasMore || queue.searchError ? queue.loadMore : undefined}
         // Ranking history first: a failing save must not leave it out of step with the deck.
         onDecide={(paperId, decision) => {
           setDecisions((d) => [...d, { paperId, decision }]);

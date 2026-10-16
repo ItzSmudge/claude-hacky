@@ -22,6 +22,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type Ref,
 } from "react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type {
   Credibility,
@@ -31,6 +32,7 @@ import type {
   SwipeDecision,
 } from "@/types/domain";
 import { DeckControls } from "./deck-controls";
+import { CardSkeleton } from "./deck-skeleton";
 import {
   canUndo,
   createDeck,
@@ -103,6 +105,8 @@ export function SwipeDeck({
   onUndo,
   onDetails,
   onEmpty,
+  loading = false,
+  onLoadMore,
   libraryHref,
   className,
   ref,
@@ -114,6 +118,8 @@ export function SwipeDeck({
   onUndo?: (paperId: string, decision: SwipeDecision) => void;
   onDetails?: (paperId: string) => void;
   onEmpty?: () => void;
+  loading?: boolean;
+  onLoadMore?: () => void;
   libraryHref?: string;
   className?: string;
 }) {
@@ -348,7 +354,13 @@ export function SwipeDeck({
         ref={regionRef}
         role="group"
         tabIndex={-1}
-        aria-label={top ? `Paper ${deck.cursor + 1} of ${total}` : "No papers left"}
+        aria-label={
+          top
+            ? `Paper ${deck.cursor + 1} of ${total}`
+            : loading
+              ? "Loading papers"
+              : "No papers left"
+        }
         onFocus={revealAboveBar}
         className="grid rounded-2xl *:[grid-area:1/1] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
       >
@@ -410,6 +422,8 @@ export function SwipeDeck({
               </motion.span>
             </motion.div>
           </motion.div>
+        ) : loading ? (
+          <CardSkeleton />
         ) : (
           <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card p-8 text-center shadow-paper">
             <p className="font-display text-xl font-semibold text-primary">
@@ -419,6 +433,11 @@ export function SwipeDeck({
               <p className="text-muted-foreground">
                 Undo to revisit the last one{libraryHref ? ", or open your library." : "."}
               </p>
+            )}
+            {onLoadMore && (
+              <Button variant="secondary" className="min-h-11" onClick={onLoadMore}>
+                Load more papers
+              </Button>
             )}
             {libraryHref && (
               <Link
