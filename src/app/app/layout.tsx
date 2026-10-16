@@ -1,5 +1,6 @@
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { AccountMenu } from "@/components/projects/account-menu";
 import { DisplaySettings } from "@/components/a11y/display-settings";
 import { Logo } from "@/components/brand/logo";
 import { EnsureSession } from "@/components/projects/ensure-session";
@@ -10,7 +11,7 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
-// Owner: projects (PR-02: history sidebar + anonymous sign-in).
+// Owner: projects (PR-02: history sidebar + anonymous sign-in; PR-03: Google sign-in).
 export default function AppLayout({ children }: LayoutProps<"/app">) {
   return (
     <div className="flex min-h-full flex-1 flex-col">
@@ -28,6 +29,9 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
           <Logo href="/app" className="min-h-11" />
         </div>
         <div className="flex items-center gap-1">
+          <Suspense fallback={null}>
+            <Account />
+          </Suspense>
           <DisplaySettings />
           <ThemeToggle />
         </div>
@@ -63,7 +67,15 @@ async function currentUserId() {
   await connection();
   const supabase = await getSupabaseServerClient();
   const { data } = await supabase.auth.getClaims();
-  return { supabase, userId: data?.claims.sub };
+  return { supabase, userId: data?.claims.sub, claims: data?.claims };
+}
+
+/** Guests (and the moment before the guest session exists) get "Sign in with Google". */
+async function Account() {
+  const { claims } = await currentUserId();
+  if (!claims || claims.is_anonymous) return <AccountMenu />;
+  const meta = claims.user_metadata as { full_name?: string; name?: string } | undefined;
+  return <AccountMenu name={meta?.full_name ?? meta?.name ?? claims.email ?? null} />;
 }
 
 /** Starts a guest session if needed, and the phone-sized project sheet. */

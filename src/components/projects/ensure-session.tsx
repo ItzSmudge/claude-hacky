@@ -6,8 +6,12 @@ import { toast } from "sonner";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 // One sign-in per page load, even if the effect runs twice (React dev) or several layouts mount.
-// PR-03: reset this to null on sign-out if that ever happens without a full reload.
 let signingIn: Promise<SessionResult> | null = null;
+
+/** After sign-out, let the next render start a fresh guest session. */
+export function resetEnsureSession() {
+  signingIn = null;
+}
 
 export type SessionResult = "created" | "existing" | "failed";
 
