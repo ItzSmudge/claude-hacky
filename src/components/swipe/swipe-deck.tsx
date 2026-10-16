@@ -140,6 +140,12 @@ export function SwipeDeck({
   const barRef = useRef<HTMLDivElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
   const keysId = useId();
+  // Read the key instructions on the deck's first focus only; after that its name is enough.
+  const [keysHeard, setKeysHeard] = useState(false);
+  // Focus the deck once it shows the new top card: focusing earlier reads the departing title.
+  const focusAfterRender = useRef(false);
+  // The top card changed because of a decision or undo here (already announced).
+  const decidedHere = useRef(false);
   const deckRef = useRef(deck);
   const busy = useRef(false);
   const dragging = useRef(false);
@@ -194,6 +200,25 @@ export function SwipeDeck({
     x.jump(0);
     opacity.jump(1);
   }, [topId, reduceMotion, x, y, opacity]);
+
+  useLayoutEffect(() => {
+    if (!focusAfterRender.current) return;
+    focusAfterRender.current = false;
+    regionRef.current?.focus();
+  }, [topId]);
+
+  // AX-01: a re-rank or refresh that drops the top card swaps it silently; say what's on top now.
+  const shownTopId = useRef(topId);
+  const announceSwap = useEffectEvent(() => {
+    const was = shownTopId.current;
+    shownTopId.current = topId;
+    const self = decidedHere.current;
+    decidedHere.current = false;
+    if (!self && was !== null && top && was !== topId) {
+      setAnnouncement(`Now on top: ${top.paper.title}.`);
+    }
+  });
+  useEffect(() => announceSwap(), [topId]);
 
   useEffect(() => {
     deckRef.current = deck;
@@ -258,6 +283,9 @@ export function SwipeDeck({
     if (current(deckRef.current)?.paper.id !== paper.id) return;
     // The card behind becomes the top one (re-ranking only reorders the cards after it).
     const next = upcoming(deckRef.current, 1)[0];
+    // Only a real focus move reads the new label; the detail sheet may already have focused the deck.
+    const focusMoves = moveFocus && document.activeElement !== regionRef.current;
+    decidedHere.current = true;
     dispatch({ type: "decide", paperId: paper.id, decision });
     // AX-01: say what's on screen now; focus often stays on Save/Skip. When focus moves to the
     // deck, its label already reads the next title, so don't say it twice.
@@ -265,10 +293,10 @@ export function SwipeDeck({
     setAnnouncement(
       `${decision === "save" ? "Saved" : "Skipped"}. ` +
         (next
-          ? `${leftNow} left.${moveFocus ? "" : ` Next: ${next.paper.title}.`}`
-          : "That was the last paper."),
+          ? `${leftNow} left.${focusMoves ? "" : ` Next: ${next.paper.title}.`}`
+          : "That's the end of the deck for now."),
     );
-    if (moveFocus) regionRef.current?.focus();
+    focusAfterRender.current = moveFocus;
     safely(onDecide, paper.id, decision);
   }
 
@@ -297,11 +325,15 @@ export function SwipeDeck({
     if (!last) return;
     entering.current = { paperId: last.paperId, from: last.decision === "save" ? 1 : -1 };
     // Undo is about to be disabled (history empties): keep focus in the deck.
-    if (deck.history.length === 1 && sectionRef.current?.contains(document.activeElement)) {
-      regionRef.current?.focus();
-    }
+    const moveFocus =
+      deck.history.length === 1 && (sectionRef.current?.contains(document.activeElement) ?? false);
+    decidedHere.current = true;
     dispatch({ type: "undo" });
-    setAnnouncement(`Restored: ${deck.known[last.paperId]?.paper.title ?? "paper"}.`);
+    // When focus moves to the deck, its label already reads the restored title.
+    const title = deck.known[last.paperId]?.paper.title ?? "paper";
+    const focusMoves = moveFocus && document.activeElement !== regionRef.current;
+    setAnnouncement(`Restored${focusMoves ? "" : `: ${title}`}. ${left + 1} left.`);
+    focusAfterRender.current = moveFocus;
     if (!reduceMotion) haptic();
     safely(onUndo, last.paperId, last.decision);
   }
@@ -386,12 +418,18 @@ export function SwipeDeck({
       aria-label="Paper deck"
       className={cn("flex flex-col gap-4", className)}
     >
+      {/* Before the card so it's in reading order. Buttons first: screen-reader browse mode and
+          phones don't send arrow keys. */}
+      <p id={keysId} className="sr-only">
+        Use the Skip, Undo and Save buttons after the card. With a keyboard: right arrow saves, left
+        arrow skips{onDetails ? ", up arrow opens details" : ""} and Z undoes.
+      </p>
       <div
         ref={regionRef}
         role="group"
         tabIndex={-1}
-        aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp Z"
-        aria-describedby={keysId}
+        aria-keyshortcuts={onDetails ? "ArrowLeft ArrowRight ArrowUp Z" : "ArrowLeft ArrowRight Z"}
+        aria-describedby={keysHeard ? undefined : keysId}
         aria-label={
           top
             ? `Paper ${deck.cursor + 1} of ${total}: ${top.paper.title}`
@@ -400,6 +438,10 @@ export function SwipeDeck({
               : "No papers left"
         }
         onFocus={revealAboveBar}
+        // On blur, not focus: the description must still be there when the screen reader reads it.
+        onBlur={(event) => {
+          if (event.target === event.currentTarget) setKeysHeard(true);
+        }}
         className="grid rounded-2xl *:[grid-area:1/1] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
       >
         {stack.map((item, i) => {
@@ -515,9 +557,6 @@ export function SwipeDeck({
 
       <p aria-live="polite" className="sr-only">
         {announcement}
-      </p>
-      <p id={keysId} className="sr-only">
-        Right arrow saves, left arrow skips, up arrow opens details, Z undoes.
       </p>
     </section>
   );
