@@ -36,8 +36,7 @@ const serverSchema = clientSchema.extend({
   SEMANTIC_SCHOLAR_API_KEY: optStr(),
   CROSSREF_MAILTO: optStr(),
   ELEVENLABS_API_KEY: optStr(),
-  // "George": a warm British voice, to match the en-GB device fallback.
-  ELEVENLABS_VOICE_ID: z.preprocess(blank, z.string().default("JBFqnCBsd6RMkjVDRZzb")),
+  ELEVENLABS_VOICE_ID: z.preprocess(blank, z.string().default("bGnz83yTAb7caZSC7BBz")),
   ELEVENLABS_MODEL_ID: z.preprocess(blank, z.string().default("eleven_flash_v2_5")),
 });
 
