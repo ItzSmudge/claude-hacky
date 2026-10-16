@@ -47,7 +47,7 @@ const DEMO_CARDS: DemoCard[] = fixturePapers.slice(0, 6).map(({ paper, analysis,
 
 /** Cream-on-teal focus ring for controls on the teal bands. */
 const ON_TEAL_FOCUS =
-  "focus-visible:ring-2 focus-visible:ring-cream-200 focus-visible:ring-offset-2 focus-visible:ring-offset-teal-700 focus-visible:outline-none";
+  "focus-visible:ring-2 focus-visible:ring-cream-200 focus-visible:ring-offset-2 focus-visible:ring-offset-teal-700 focus-visible:outline-hidden hc:focus-visible:ring-4";
 
 const STEPS: { icon: LucideIcon; title: string; body: string }[] = [
   {
@@ -111,12 +111,6 @@ export default function LandingPage() {
       <Features />
       <Trust />
       <ClosingCta />
-      <footer className="border-t border-border bg-background px-4 py-8 text-sm text-muted-foreground md:px-8">
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <Logo />
-          <p>Real papers, honest summaries, citations you can trust.</p>
-        </div>
-      </footer>
     </>
   );
 }
@@ -125,17 +119,21 @@ function Hero() {
   return (
     <section
       aria-labelledby="hero-title"
-      className="bg-teal-700 px-4 pt-6 pb-16 text-cream-200 md:px-8 md:pb-24"
+      // overflow-x-clip: swiped-away demo cards must not widen the page on phones.
+      className="overflow-x-clip bg-teal-700 px-4 pt-6 pb-16 text-cream-200 md:px-8 md:pb-24 hc:bg-teal-950"
     >
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-        <Logo className={`text-cream-200 ${ON_TEAL_FOCUS}`} />
+      <nav
+        aria-label="Primary"
+        className="mx-auto flex max-w-6xl items-center justify-between gap-4"
+      >
+        <Logo className={`min-h-11 text-cream-200 ${ON_TEAL_FOCUS}`} />
         <Link
           href="/app"
           className={`flex min-h-11 items-center rounded-xl px-3 text-sm font-medium text-cream-100 underline-offset-4 hover:underline ${ON_TEAL_FOCUS}`}
         >
           Open the app
         </Link>
-      </div>
+      </nav>
 
       <div className="mx-auto mt-12 grid max-w-6xl items-center gap-12 md:mt-20 md:grid-cols-[1.1fr_1fr]">
         <div className="flex flex-col items-start gap-6">
@@ -271,7 +269,7 @@ function Trust() {
   return (
     <section
       aria-labelledby="trust-title"
-      className="bg-teal-700 px-4 py-16 text-cream-100 md:px-8 md:py-24"
+      className="bg-teal-700 px-4 py-16 text-cream-100 md:px-8 md:py-24 hc:bg-teal-950"
     >
       <div className="mx-auto grid max-w-6xl gap-10 md:grid-cols-[1fr_1.2fr] md:items-start">
         <div className="flex flex-col gap-4">
@@ -347,7 +345,7 @@ function ClosingCta() {
         <Button
           asChild
           size="lg"
-          className="h-12 rounded-xl px-6 text-base focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="h-12 rounded-xl px-6 text-base focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden hc:focus-visible:ring-4"
         >
           <Link href="/app">Try it — no signup</Link>
         </Button>

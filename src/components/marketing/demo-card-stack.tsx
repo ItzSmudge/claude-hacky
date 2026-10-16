@@ -2,7 +2,7 @@
 
 import { Pause, Play, ShieldCheck } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 
 /** Just what the hero card needs; picked from fixtures on the server so no JSON ships to the client. */
@@ -14,6 +14,10 @@ export interface DemoCard {
   whyItMatters: string;
 }
 
+const noSubscribe = () => () => {};
+const isClient = () => true;
+const isServer = () => false;
+
 /** save, save, skip — so both stamps show up in one loop. */
 const DECISIONS = ["save", "save", "skip"] as const;
 const INTERVAL_MS = 3200;
@@ -24,10 +28,14 @@ const STACK = 3;
  * readers (the hero copy says the same thing). Static under reduced motion; pausable otherwise.
  */
 export function DemoCardStack({ cards }: { cards: DemoCard[] }) {
-  const reduceMotion = useReducedMotion();
+  // useReducedMotion() is null on the server and set on the client's first render, so it is only
+  // applied after mount; otherwise the server HTML and first client render disagree (hydration).
+  const prefersReduced = useReducedMotion();
+  const mounted = useSyncExternalStore(noSubscribe, isClient, isServer);
+  const reduceMotion = mounted && !!prefersReduced;
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
-  const animate = !reduceMotion && !paused && cards.length > 1;
+  const animate = mounted && !reduceMotion && !paused && cards.length > 1;
 
   useEffect(() => {
     if (!animate) return;
@@ -56,7 +64,7 @@ export function DemoCardStack({ cards }: { cards: DemoCard[] }) {
               animate={{
                 y: depth * 14,
                 scale: 1 - depth * 0.04,
-                rotate: depth === 0 ? 0 : depth % 2 ? -3 : 3,
+                rotate: reduceMotion || depth === 0 ? 0 : depth % 2 ? -3 : 3,
                 opacity: 1,
               }}
               exit={
@@ -76,19 +84,20 @@ export function DemoCardStack({ cards }: { cards: DemoCard[] }) {
         </AnimatePresence>
       </div>
 
-      {!reduceMotion && cards.length > 1 && (
+      {/* Hidden by CSS, not JS, under reduced motion: useReducedMotion() differs between server and client. */}
+      {cards.length > 1 && (
         <button
           type="button"
           onClick={() => setPaused((p) => !p)}
           aria-pressed={paused}
-          className="mx-auto mt-2 flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm text-cream-100 transition-colors hover:bg-teal-800 focus-visible:ring-2 focus-visible:ring-cream-200 focus-visible:ring-offset-2 focus-visible:ring-offset-teal-700 focus-visible:outline-none"
+          className="relative z-10 mx-auto mt-2 flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm text-cream-100 transition-colors hover:bg-teal-800 focus-visible:ring-2 focus-visible:ring-cream-200 focus-visible:ring-offset-2 focus-visible:ring-offset-teal-700 focus-visible:outline-hidden motion-reduce:hidden hc:focus-visible:ring-4"
         >
           {paused ? (
             <Play className="size-4" strokeWidth={1.75} aria-hidden />
           ) : (
             <Pause className="size-4" strokeWidth={1.75} aria-hidden />
           )}
-          {paused ? "Play demo" : "Pause demo"}
+          Pause demo
         </button>
       )}
     </div>
