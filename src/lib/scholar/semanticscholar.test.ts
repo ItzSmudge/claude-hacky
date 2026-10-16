@@ -4,6 +4,7 @@ import { fixturePapers } from "@/fixtures";
 import recorded from "./__fixtures__/semanticscholar-papers.json";
 import {
   SemanticScholarError,
+  lookupSemanticScholarByDoi,
   s2PaperToPaper,
   searchSemanticScholar,
   type S2Paper,
@@ -325,5 +326,145 @@ describe("searchSemanticScholar", () => {
     ).rejects.toMatchObject({ retryable: false });
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(initOf(fetch).signal).toBeInstanceOf(AbortSignal);
+  });
+});
+
+describe("lookupSemanticScholarByDoi", () => {
+  const json = (value: unknown, status = 200, headers: Record<string, string> = {}) =>
+    new Response(JSON.stringify(value), {
+      status,
+      headers: { "content-type": "application/json", ...headers },
+    });
+  const sleep = vi.fn<(ms: number, signal?: AbortSignal) => Promise<void>>(async () => {});
+  const callOf = (fetch: ReturnType<typeof vi.fn>, call = 0) =>
+    fetch.mock.calls[call] as unknown as [string, RequestInit];
+
+  it("posts the DOIs to /paper/batch with the key as a header", async () => {
+    const fetch = vi.fn(async () => json([null, null]));
+    await lookupSemanticScholarByDoi(["10.1/a", "10.2/b"], { fetch, sleep, apiKey: "secret-key" });
+    const [url, init] = callOf(fetch);
+    expect(url).toBe("https://api.semanticscholar.org/graph/v1/paper/batch?fields=tldr,abstract");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ ids: ["DOI:10.1/a", "DOI:10.2/b"] });
+    const headers = new Headers(init.headers);
+    expect(headers.get("x-api-key")).toBe("secret-key");
+    expect(headers.get("content-type")).toBe("application/json");
+    expect(url).not.toContain("secret-key");
+
+    const anonymous = vi.fn(async () => json([null]));
+    await lookupSemanticScholarByDoi(["10.1/a"], { fetch: anonymous, sleep });
+    expect(new Headers(callOf(anonymous)[1].headers).has("x-api-key")).toBe(false);
+  });
+
+  it.each([[[]], [["not a doi", ""]]])("makes no request for %j", async (dois) => {
+    const fetch = vi.fn(async () => json([]));
+    await expect(lookupSemanticScholarByDoi(dois, { fetch, sleep })).resolves.toEqual(new Map());
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("sends each DOI once, normalised and lowercased", async () => {
+    const fetch = vi.fn(async () => json([null]));
+    await lookupSemanticScholarByDoi(["10.1/ABC", "https://doi.org/10.1/abc", "10.1/abc"], {
+      fetch,
+      sleep,
+    });
+    expect(JSON.parse(callOf(fetch)[1].body as string)).toEqual({ ids: ["DOI:10.1/abc"] });
+  });
+
+  it("maps results by position and skips unknown papers", async () => {
+    const fetch = vi.fn(async () =>
+      json([
+        { paperId: "x", tldr: { model: "tldr@v2.0.0", text: " Short  one. " }, abstract: "Abs." },
+        null,
+        { paperId: "y", tldr: null, abstract: null },
+      ]),
+    );
+    const map = await lookupSemanticScholarByDoi(["10.1/a", "10.2/b", "10.3/c"], { fetch, sleep });
+    expect(map.get("10.1/a")).toEqual({ tldr: "Short one.", abstract: "Abs." });
+    expect(map.has("10.2/b")).toBe(false);
+    expect(map.get("10.3/c")).toEqual({});
+  });
+
+  it.each([
+    ["a shorter array", JSON.stringify([null])],
+    ["an object", JSON.stringify({ data: [] })],
+    ["HTML", "<html>"],
+  ])("throws a 502 on %s", async (_label, body) => {
+    const fetch = vi.fn(async () => new Response(body, { status: 200 }));
+    await expect(
+      lookupSemanticScholarByDoi(["10.1/a", "10.2/b"], { fetch, sleep }),
+    ).rejects.toMatchObject({ status: 502, retryable: false });
+  });
+
+  it("retries one 429, then succeeds", async () => {
+    sleep.mockClear();
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(json({ message: "busy" }, 429))
+      .mockResolvedValueOnce(json([{ tldr: { text: "T" } }]));
+    const map = await lookupSemanticScholarByDoi(["10.1/a"], { fetch, sleep });
+    expect(map.get("10.1/a")).toEqual({ tldr: "T" });
+    expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([500]);
+  });
+
+  it("honours a Retry-After that fits the budget, capped at 2 s", async () => {
+    for (const [header, ms] of [
+      ["2", 2000],
+      ["30", 2000],
+    ] as const) {
+      sleep.mockClear();
+      const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(json({}, 429, { "retry-after": header }))
+        .mockResolvedValueOnce(json([null]));
+      await lookupSemanticScholarByDoi(["10.1/a"], { fetch, sleep });
+      expect(sleep.mock.calls[0]![0]).toBe(ms);
+    }
+  });
+
+  it("gives up after one retry with a retryable 429", async () => {
+    const fetch = vi.fn(async () => json({}, 429));
+    await expect(lookupSemanticScholarByDoi(["10.1/a"], { fetch, sleep })).rejects.toMatchObject({
+      status: 429,
+      retryable: true,
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry a 400 and keeps the key out of the error", async () => {
+    const fetch = vi.fn(async () => json({ error: "bad" }, 400));
+    const err = (await lookupSemanticScholarByDoi(["10.1/a"], {
+      fetch,
+      sleep,
+      apiKey: "secret-key",
+    }).catch((e: unknown) => e)) as SemanticScholarError;
+    expect(err).toBeInstanceOf(SemanticScholarError);
+    expect(err).toMatchObject({ status: 400, retryable: false });
+    expect(err.message).not.toContain("secret-key");
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not call S2 when already aborted", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const fetch = vi.fn(async () => json([null]));
+    await expect(
+      lookupSemanticScholarByDoi(["10.1/a"], { fetch, sleep, signal: controller.signal }),
+    ).rejects.toBeInstanceOf(SemanticScholarError);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("stops when the caller aborts during the retry wait", async () => {
+    const controller = new AbortController();
+    const abortingSleep = vi.fn(async () => controller.abort());
+    const fetch = vi.fn(async () => json({}, 429));
+    await expect(
+      lookupSemanticScholarByDoi(["10.1/a"], {
+        fetch,
+        sleep: abortingSleep,
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ retryable: false });
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
