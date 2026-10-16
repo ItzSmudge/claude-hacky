@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { searchResponseSchema, type SearchResponse } from "@/lib/api-schemas";
 import type { PaperAnalysis } from "@/types/domain";
 import { AnalyseError, streamAnalyses } from "./analyse-stream";
-import { idsToAnalyse, shouldAutoPage } from "./queue-state";
+import { idsToAnalyse, isRelevant, shouldAutoPage } from "./queue-state";
 import type { DeckItem } from "./swipe-deck";
 
 /** /api/search caps `q` at 300 chars (searchRequestSchema); project queries can be longer. */
@@ -75,9 +75,16 @@ export function usePaperQueue({
     }
   }, [nextPage, query, projectId, swiped]);
 
+  // Analysed but off-topic: dropped like a failed analysis, so the deck and paging skip them.
+  const skipped = useMemo(() => {
+    const ids = new Set(failed);
+    for (const [id, analysis] of Object.entries(analyses)) if (!isRelevant(analysis)) ids.add(id);
+    return ids;
+  }, [failed, analyses]);
+
   const undecided = useMemo(
-    () => candidates.filter((c) => !decidedIds.has(c.id) && !failed.has(c.id)),
-    [candidates, decidedIds, failed],
+    () => candidates.filter((c) => !decidedIds.has(c.id) && !skipped.has(c.id)),
+    [candidates, decidedIds, skipped],
   );
 
   // Prefetch the next page before the deck runs dry, but not forever if nothing analyses.
@@ -100,7 +107,7 @@ export function usePaperQueue({
       candidates,
       analysed: analyses,
       inflight: inflight.current,
-      failed,
+      failed: skipped,
       decided: decidedIds,
     });
     if (ids.length === 0) return;
@@ -114,7 +121,7 @@ export function usePaperQueue({
           { projectId, paperIds: ids },
           (event) => {
             if (event.type === "analysis") {
-              barrenPages.current = 0;
+              if (isRelevant(event.analysis)) barrenPages.current = 0;
               settled.add(event.analysis.paperId);
               setAnalyses((a) => ({ ...a, [event.analysis.paperId]: event.analysis }));
             } else if (event.type === "error") {
@@ -136,13 +143,13 @@ export function usePaperQueue({
         bump();
       }
     })();
-  }, [candidates, analyses, failed, decidedIds, projectId, analyseUnavailable]);
+  }, [candidates, analyses, skipped, decidedIds, projectId, analyseUnavailable]);
 
   const items = useMemo<DeckItem[]>(
     () =>
       candidates.flatMap(({ credibility, ...paper }) => {
         const analysis = analyses[paper.id];
-        return analysis ? [{ paper, analysis, credibility }] : [];
+        return analysis && isRelevant(analysis) ? [{ paper, analysis, credibility }] : [];
       }),
     [candidates, analyses],
   );

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { idsToAnalyse, shouldAutoPage } from "./queue-state";
+import { idsToAnalyse, isRelevant, MIN_RELEVANCE, shouldAutoPage } from "./queue-state";
 
 const ids = ["a", "b", "c", "d", "e", "f"].map((id) => ({ id }));
 const none = new Set<string>();
@@ -59,5 +59,13 @@ describe("shouldAutoPage", () => {
   it("does not retry a failed search by itself or page past the last page", () => {
     expect(shouldAutoPage({ ...base, searchError: true })).toBe(false);
     expect(shouldAutoPage({ ...base, nextPage: null })).toBe(false);
+  });
+});
+
+describe("isRelevant", () => {
+  it("keeps cards scored at or above MIN_RELEVANCE and drops the rest", () => {
+    expect(isRelevant({ relevance: MIN_RELEVANCE })).toBe(true);
+    expect(isRelevant({ relevance: 90 })).toBe(true);
+    expect(isRelevant({ relevance: MIN_RELEVANCE - 1 })).toBe(false);
   });
 });
