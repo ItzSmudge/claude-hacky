@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { z } from "zod";
 import { ExportPanel } from "@/components/library/export-panel";
 import type { LibraryItem } from "@/components/library/library-groups";
+import { RelationsPanel } from "@/components/library/relations-panel";
 import { SavedPaperList } from "@/components/library/saved-paper-list";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,7 +13,7 @@ import { computeCredibility } from "@/lib/credibility";
 import { citeKeys, loadSavedLibrary, sortByKey } from "@/lib/export";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
-// Owner: library (LB-*). LB-01: saved papers by use / claim; LB-03: export panel below.
+// Owner: library (LB-*). LB-01: saved papers by use / claim; LB-04: how they connect; LB-03: export.
 export default function LibraryPage({ params }: PageProps<"/app/p/[projectId]/library">) {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
@@ -93,6 +94,18 @@ async function Library({ params }: Pick<PageProps<"/app/p/[projectId]/library">,
       ) : (
         <>
           <SavedPaperList projectId={projectId} items={items} claims={claims} />
+          {papers.length >= 2 ? (
+            <RelationsPanel
+              projectId={projectId}
+              claims={claims}
+              papers={papers.map((p) => ({
+                id: p.id,
+                title: p.title,
+                year: p.year,
+                citeKey: keys.get(p.id)!,
+              }))}
+            />
+          ) : null}
           <ExportPanel projectId={projectId} citeKeys={sortedKeys} />
         </>
       )}
