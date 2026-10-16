@@ -52,6 +52,12 @@ export interface SwipeDeckHandle {
   decide: (paperId: string, decision: SwipeDecision) => boolean;
   /** Focuses the deck region (e.g. after a sheet closes with nowhere better to return to). */
   focus: () => void;
+  /** The top card's paper id, or null when the deck is empty (AX-03 voice commands). */
+  topId: () => string | null;
+  /** Same as the Undo button / Z key; false when there's nothing to undo. */
+  undo: () => boolean;
+  /** Same as the Details button / up arrow. */
+  details: () => void;
 }
 
 export interface DeckItem {
@@ -307,6 +313,13 @@ export function SwipeDeck({
       return true;
     },
     focus: () => regionRef.current?.focus(),
+    topId: () => topId,
+    undo: () => {
+      if (!canUndo(deck) || busy.current) return false;
+      undo();
+      return true;
+    },
+    details: () => details(),
   }));
 
   // WCAG 2.4.11: browsers don't scroll a focused control that's "visible" but under the sticky bar.

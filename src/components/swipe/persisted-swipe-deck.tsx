@@ -5,6 +5,10 @@ import { toast } from "sonner";
 import type { SwipeRequest } from "@/lib/api-schemas";
 import { extractFeatures, rankItems, type SwipeSample } from "@/lib/ranking";
 import type { ProjectContext, SwipeDecision } from "@/types/domain";
+import { speak, stop as stopSpeaking } from "@/components/a11y/read-aloud";
+import { cardScript } from "@/components/a11y/speech";
+import type { VoiceCommand } from "@/components/a11y/voice";
+import { VoiceControl } from "@/components/a11y/voice-control";
 import { DetailSheet } from "./detail-sheet";
 import { SwipeDeck, type DeckItem, type SwipeDeckHandle } from "./swipe-deck";
 import { classifyStatus, createSwipeSync, type SendResult, type SwipeOp } from "./swipe-sync";
@@ -178,8 +182,45 @@ export function PersistedSwipeDeck({
   // Item stays set while the sheet animates closed.
   const [details, setDetails] = useState<{ item: DeckItem; open: boolean } | null>(null);
 
+  // AX-03: voice commands drive the same paths as the buttons and keys.
+  function onVoice(command: VoiceCommand): boolean {
+    const handle = deck.current;
+    if (!handle) return false;
+    const topId = handle.topId();
+    const top = topId ? items.find((i) => i.paper.id === topId) : undefined;
+    switch (command) {
+      case "save":
+      case "skip":
+        return !!topId && handle.decide(topId, command);
+      case "undo":
+        return handle.undo();
+      case "details":
+        if (!topId) return false;
+        handle.details();
+        return true;
+      case "read":
+      case "why":
+        if (!top) return false;
+        speak(
+          "voice",
+          command === "read"
+            ? cardScript({
+                title: top.paper.title,
+                whyItMatters: top.analysis.whyItMatters,
+                overview: top.analysis.overview,
+              })
+            : [`Why it matters: ${top.analysis.whyItMatters.trim() || "not stated"}`],
+        );
+        return true;
+      case "stop":
+        stopSpeaking();
+        return true;
+    }
+  }
+
   return (
     <>
+      <VoiceControl onCommand={onVoice} />
       <SwipeDeck
         ref={deck}
         items={ranked}
