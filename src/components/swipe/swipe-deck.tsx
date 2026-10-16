@@ -28,6 +28,7 @@ import {
   decisionMessage,
   nothingLeftMessage,
   spokenTitle,
+  topChangedMessage,
   undoMessage,
 } from "@/components/a11y/deck-announcements";
 import { DeckInstructions } from "@/components/a11y/deck-instructions";
@@ -159,11 +160,16 @@ export function SwipeDeck({
   const { message: announcement, announce } = useAnnouncer();
   const instructionsId = useId();
   // AX-01: what the user just did, spoken once the deck has settled on its new top card.
+  // `focused`: focus moved to the deck, whose name already says the new top card.
   const pending = useRef<
-    | { kind: "decide"; decision: SwipeDecision; title: string }
-    | { kind: "undo"; title: string }
+    | { kind: "decide"; decision: SwipeDecision; title: string; focused: boolean }
+    | { kind: "undo"; title: string; focused: boolean }
     | null
   >(null);
+  // Focus the deck once it shows the new top card, so its name isn't the departing paper's.
+  const focusAfterRender = useRef(false);
+  // Read the instructions on the first focus only; after that the name is enough.
+  const [instructionsHeard, setInstructionsHeard] = useState(false);
 
   const top = current(deck);
   const topId = top?.paper.id ?? null;
@@ -200,6 +206,12 @@ export function SwipeDeck({
     opacity.jump(1);
   }, [topId, reduceMotion, x, y, opacity]);
 
+  useLayoutEffect(() => {
+    if (!focusAfterRender.current) return;
+    focusAfterRender.current = false;
+    regionRef.current?.focus();
+  });
+
   useEffect(() => {
     deckRef.current = deck;
   }, [deck]);
@@ -214,7 +226,8 @@ export function SwipeDeck({
     }
   }, [left]);
 
-  // Runs after the parent re-ranks, so "Next:" names the card that is really on top.
+  // After the commit that applied the decision (and any re-rank the parent did in the same
+  // update), so "Next:" names the card that is really on top.
   const announced = useRef({ topId, loading });
   const announceChange = useEffectEvent(() => {
     const was = announced.current;
@@ -222,13 +235,13 @@ export function SwipeDeck({
     const done = pending.current;
     pending.current = null;
     if (done?.kind === "decide") {
-      announce(
-        decisionMessage({ ...done, next: top?.paper.title ?? null, left, loading: loading }),
-      );
+      announce(decisionMessage({ ...done, next: top?.paper.title ?? null, left, loading }));
     } else if (done?.kind === "undo") {
-      announce(undoMessage({ title: done.title, left }));
+      announce(undoMessage({ ...done, left }));
     } else if (top && was.topId === null) {
       announce(arrivalMessage({ title: top.paper.title, first: deck.cursor === 0 }));
+    } else if (top && was.topId !== topId) {
+      announce(topChangedMessage(top.paper.title));
     } else if (!top && was.loading && !loading) {
       announce(nothingLeftMessage(total));
     }
@@ -269,8 +282,8 @@ export function SwipeDeck({
     // The card may have been removed from `items` mid-animation: then nothing was decided.
     if (current(deckRef.current)?.paper.id !== paper.id) return;
     dispatch({ type: "decide", paperId: paper.id, decision });
-    pending.current = { kind: "decide", decision, title: paper.title };
-    if (moveFocus) regionRef.current?.focus();
+    pending.current = { kind: "decide", decision, title: paper.title, focused: moveFocus };
+    focusAfterRender.current = moveFocus;
     safely(onDecide, paper.id, decision);
   }
 
@@ -297,11 +310,15 @@ export function SwipeDeck({
     if (!last) return;
     entering.current = { paperId: last.paperId, from: last.decision === "save" ? 1 : -1 };
     // Undo is about to be disabled (history empties): keep focus in the deck.
-    if (deck.history.length === 1 && sectionRef.current?.contains(document.activeElement)) {
-      regionRef.current?.focus();
-    }
+    const moveFocus =
+      deck.history.length === 1 && (sectionRef.current?.contains(document.activeElement) ?? false);
     dispatch({ type: "undo" });
-    pending.current = { kind: "undo", title: deck.known[last.paperId]?.paper.title ?? "" };
+    pending.current = {
+      kind: "undo",
+      title: deck.known[last.paperId]?.paper.title ?? "",
+      focused: moveFocus,
+    };
+    focusAfterRender.current = moveFocus;
     if (!reduceMotion) haptic();
     safely(onUndo, last.paperId, last.decision);
   }
@@ -386,11 +403,12 @@ export function SwipeDeck({
       aria-label="Paper deck"
       className={cn("flex flex-col gap-4", className)}
     >
+      <DeckInstructions id={instructionsId} details={Boolean(onDetails)} />
       <div
         ref={regionRef}
         role="group"
         tabIndex={-1}
-        aria-describedby={top ? instructionsId : undefined}
+        aria-describedby={top && !instructionsHeard ? instructionsId : undefined}
         aria-label={
           top
             ? `Paper ${deck.cursor + 1} of ${total}: ${spokenTitle(top.paper.title)}`
@@ -399,6 +417,10 @@ export function SwipeDeck({
               : "No papers left"
         }
         onFocus={revealAboveBar}
+        // On blur, not focus: the description must still be there when the screen reader reads it.
+        onBlur={(event) => {
+          if (event.target === event.currentTarget && top) setInstructionsHeard(true);
+        }}
         className="grid rounded-2xl *:[grid-area:1/1] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
       >
         {stack.map((item, i) => {
@@ -504,7 +526,6 @@ export function SwipeDeck({
         />
       </div>
 
-      <DeckInstructions id={instructionsId} details={Boolean(onDetails)} />
       <LiveAnnouncer message={announcement} />
     </section>
   );

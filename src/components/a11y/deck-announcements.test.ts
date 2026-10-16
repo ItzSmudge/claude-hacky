@@ -4,6 +4,7 @@ import {
   decisionMessage,
   nothingLeftMessage,
   spokenTitle,
+  topChangedMessage,
   undoMessage,
 } from "./deck-announcements";
 
@@ -40,9 +41,9 @@ describe("decisionMessage", () => {
     );
   });
 
-  it("says when that was the last paper", () => {
+  it("says when the deck has run out", () => {
     expect(decisionMessage({ decision: "save", title: "A", next: null, left: 0 })).toBe(
-      "Saved: A. That was the last paper.",
+      "Saved: A. That's the end of the deck for now.",
     );
   });
 
@@ -50,6 +51,12 @@ describe("decisionMessage", () => {
     expect(
       decisionMessage({ decision: "skip", title: "A", next: null, left: 0, loading: true }),
     ).toBe("Skipped: A. Loading more papers.");
+  });
+
+  it("leaves the next title out when focus already names it", () => {
+    expect(
+      decisionMessage({ decision: "save", title: "A", next: "B", left: 3, focused: true }),
+    ).toBe("Saved: A. 3 left.");
   });
 
   it("does not repeat a sentence-ending mark from the title", () => {
@@ -62,6 +69,16 @@ describe("decisionMessage", () => {
 describe("undoMessage", () => {
   it("names the restored paper and the count", () => {
     expect(undoMessage({ title: "A", left: 5 })).toBe("Restored: A. 5 left.");
+  });
+
+  it("leaves the title out when focus already names it", () => {
+    expect(undoMessage({ title: "A", left: 5, focused: true })).toBe("Restored. 5 left.");
+  });
+});
+
+describe("topChangedMessage", () => {
+  it("names the new top card", () => {
+    expect(topChangedMessage("B")).toBe("Now on top: B.");
   });
 });
 

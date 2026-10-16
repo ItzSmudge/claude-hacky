@@ -19,19 +19,25 @@
 ## Changes
 
 - **`src/components/a11y/deck-announcements.ts`** (new, pure, TDD): builds every message from deck events.
-  - decide → `Saved: <title>. Next: <next title>. 4 left.` / `Skipped: …`; last card → `… That was the last paper.`
+  - decide → `Saved: <title>. Next: <next title>. 4 left.` / `Skipped: …`; deck ran out → `… That's the end of the deck for now.` or `… Loading more papers.`
   - undo → `Restored: <title>. 5 left.`
-  - loaded (empty → has cards) → `<n> papers ready. First: <title>.`; load more → `<n> more papers added.`
+  - When focus has just moved to the deck (whose name already says the top card), the new top title is left out: `Saved: <title>. 4 left.` / `Restored. 5 left.`
+  - arrival (no top card → top card) → `Papers ready. First: <title>.` or, after the deck ran out, `More papers ready. Next: <title>.`
+  - top card swapped without a decision (removed from results) → `Now on top: <title>.`
+  - loading ends with nothing → `No papers to swipe yet.` / `No more papers found.`
   - Titles only come from `paper.title` (scholar data); long ones are cut at a word boundary.
-- **`src/components/a11y/live-announcer.tsx`** (new): a polite, `sr-only`, `aria-atomic` region that re-speaks identical messages (toggles a trailing zero-width marker per message).
-- **`src/components/a11y/deck-instructions.tsx`** (new): `sr-only` text, linked to the deck region by `aria-describedby`: "Right arrow saves, left arrow skips, up arrow opens details, Z undoes. Or use the buttons below."
-- **`swipe-deck.tsx`** (swipe-owned, small wiring; noted in the PR): the region's name becomes "Paper 3 of 10: <title>"; use the builder, the announcer and the instructions; announce loads and the empty deck.
+- **`src/components/a11y/live-announcer.tsx`** (new): a polite, `sr-only`, `aria-atomic` region that re-speaks identical messages (alternates a trailing no-break space per message).
+- **`src/components/a11y/deck-instructions.tsx`** (new): `sr-only` text just before the deck, so it is in reading order. It is also linked by `aria-describedby` until the deck has had focus once. It leads with the buttons, because screen-reader browse mode and phones don't send arrow keys: "Use the Skip, Undo and Save buttons after the card. With a keyboard: right arrow saves, left arrow skips, up arrow opens details and Z undoes."
+- **`swipe-deck.tsx`** (swipe-owned, small wiring; noted in the PR):
+  - the region's name becomes "Paper 3 of 10: <title>"
+  - wire in the builder, the announcer and the instructions
+  - focus moves to the region after the render that shows the new top card, not before, so focus never names the departing paper
 
 ## Edge cases
 
 - Decision from the detail sheet: same message, focus still lands on the deck (existing behaviour).
 - A card removed mid-animation: no announcement (existing guard).
-- `items` replaced by re-ranking: no announcement unless the deck went from empty to non-empty or grew after "Load more".
+- `items` replaced by re-ranking: no announcement unless the deck went from empty to non-empty or the top card itself changed.
 - Reduced motion: same messages; nothing depends on animation.
 - Missing or blank title → "Untitled paper".
 

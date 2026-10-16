@@ -25,6 +25,7 @@ const sentence = (text: string) => (/[.?!…]$/.test(text) ? text : `${text}.`);
 /**
  * After save/skip. `left` counts the cards still to decide, `next` is the new top card's title,
  * `loading` says whether more papers are on their way when the deck has run out.
+ * `focused`: focus just moved to the deck, whose name already says the new top card, so don't.
  */
 export function decisionMessage({
   decision,
@@ -32,22 +33,41 @@ export function decisionMessage({
   next,
   left,
   loading = false,
+  focused = false,
 }: {
   decision: SwipeDecision;
   title: string;
   next: string | null;
   left: number;
   loading?: boolean;
+  focused?: boolean;
 }): string {
   const done = sentence(`${decision === "save" ? "Saved" : "Skipped"}: ${spokenTitle(title)}`);
   if (next === null || left <= 0) {
-    return `${done} ${loading ? "Loading more papers." : "That was the last paper."}`;
+    return `${done} ${loading ? "Loading more papers." : "That's the end of the deck for now."}`;
   }
+  if (focused) return `${done} ${left} left.`;
   return `${done} ${sentence(`Next: ${spokenTitle(next)}`)} ${left} left.`;
 }
 
-export function undoMessage({ title, left }: { title: string; left: number }): string {
-  return `${sentence(`Restored: ${spokenTitle(title)}`)} ${left} left.`;
+/** After undo. `focused`: the deck's name already says the restored paper, so don't repeat it. */
+export function undoMessage({
+  title,
+  left,
+  focused = false,
+}: {
+  title: string;
+  left: number;
+  focused?: boolean;
+}): string {
+  return focused
+    ? `Restored. ${left} left.`
+    : `${sentence(`Restored: ${spokenTitle(title)}`)} ${left} left.`;
+}
+
+/** The top card changed without a decision (it was removed from the results). */
+export function topChangedMessage(title: string): string {
+  return sentence(`Now on top: ${spokenTitle(title)}`);
 }
 
 /** A top card appeared on an empty deck: the first load, or more papers after the deck ran out. */
