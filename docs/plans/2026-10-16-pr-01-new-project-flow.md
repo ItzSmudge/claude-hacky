@@ -291,7 +291,7 @@ it("returns 500 when the insert fails", async () => {
 - Consumes:
   - `authorise` and `error` from `../authorise`
   - `briefStoragePath` and `contextErrorStatus` from Task 1
-  - `MAX_UPLOAD_BYTES` from `@/components/projects/new-project`
+  - `MAX_UPLOAD_BYTES` and `TOO_LARGE_MESSAGE` from `@/components/projects/new-project`
   - `parseBrief` from `@/lib/ai`
   - `resolveBriefKind` from `@/lib/ai/brief-input`
 - Produces:
@@ -305,27 +305,94 @@ it("returns 500 when the insert fails", async () => {
     - `from("project_documents").insert(row)` records `row`
     - `storage.from("briefs").upload(path, data, opts)` and `.remove([path])` record their calls
   - **Mock `@/lib/ai`:** `parseBrief`, plus the real error classes via `vi.importActual`.
+  - **`withBrief(name, type, size = 3)`** returns a `FormData` whose `brief` is a `File` of `size` bytes.
   - **Build requests** with `new Request(url, { method: "POST", body: formData })`, where `formData` optionally has `brief` set to `new File([bytes], name, { type })`.
 
 ```ts
-it("returns 401 / 400 bad id / 404 / 403 for a member who isn't the owner, without uploading or parsing", …);
+it.each([
+  [
+    "no session",
+    () => {
+      db.userId = undefined;
+    },
+    PID,
+    401,
+  ],
+  ["a bad id", () => {}, "not-a-uuid", 400],
+  [
+    "a missing project",
+    () => {
+      db.project = null;
+    },
+    PID,
+    404,
+  ],
+  [
+    "a member who isn't the owner",
+    () => {
+      db.project = { ...PROJECT, owner_id: "someone-else" };
+    },
+    PID,
+    403,
+  ],
+])(
+  "returns the right status for %s, without uploading or parsing",
+  async (_, arrange, id, status) => {
+    arrange();
+    expect((await post(id, withBrief("brief.pdf", "application/pdf"))).status).toBe(status);
+    expect(db.uploads).toEqual([]);
+    expect(parseBrief).not.toHaveBeenCalled();
+  },
+);
 it("parses the question alone when no file is sent, and saves nothing", async () => {
   const res = await post(PID, new FormData());
   expect(res.status).toBe(200);
   expect(await res.json()).toEqual({ context: CONTEXT });
-  expect(parseBrief).toHaveBeenCalledWith(expect.objectContaining({ query: QUERY, brief: undefined }));
-  expect(db.uploads).toEqual([]); expect(db.documents).toEqual([]); expect(db.projectUpdates).toEqual([]);
+  expect(parseBrief).toHaveBeenCalledWith(
+    expect.objectContaining({ query: QUERY, brief: undefined }),
+  );
+  expect(db.uploads).toEqual([]);
+  expect(db.documents).toEqual([]);
+  expect(db.projectUpdates).toEqual([]);
 });
-it("treats an empty file input as no brief", …); // brief = new File([], "") → same assertions as above
+it("treats an empty file input as no brief", async () => {
+  const form = new FormData();
+  form.set("brief", new File([], ""));
+  expect((await post(PID, form)).status).toBe(200);
+  expect(parseBrief.mock.calls[0][0].brief).toBeUndefined();
+  expect(db.uploads).toEqual([]);
+});
 it("uploads the brief, parses it and records the document", async () => {
   // brief.docx, DOCX MIME, 3 bytes; parseBrief resolves { context: CONTEXT, extractedText: "text" }
   expect(db.uploads[0].path).toMatch(new RegExp(`^${PID}/[\\w-]+-brief\\.docx$`));
-  expect(db.uploads[0].opts.contentType).toBe("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-  expect(parseBrief.mock.calls[0][0].brief).toMatchObject({ filename: "brief.docx", mimeType: DOCX });
-  expect(db.documents).toEqual([{ project_id: PID, storage_path: db.uploads[0].path, filename: "brief.docx", extracted_text: "text" }]);
+  expect(db.uploads[0].opts.contentType).toBe(
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  );
+  expect(parseBrief.mock.calls[0][0].brief).toMatchObject({
+    filename: "brief.docx",
+    mimeType: DOCX,
+  });
+  expect(db.documents).toEqual([
+    {
+      project_id: PID,
+      storage_path: db.uploads[0].path,
+      filename: "brief.docx",
+      extracted_text: "text",
+    },
+  ]);
 });
-it("rejects files over 4 MB with 400 before uploading", …);
-it("rejects an unsupported file with 400 before uploading", …); // scan.png
+it("rejects files over 4 MB with 400 before uploading", async () => {
+  const res = await post(PID, withBrief("big.pdf", "application/pdf", MAX_UPLOAD_BYTES + 1));
+  expect(res.status).toBe(400);
+  expect((await res.json()).error).toBe(TOO_LARGE_MESSAGE);
+  expect(db.uploads).toEqual([]);
+  expect(parseBrief).not.toHaveBeenCalled();
+});
+it("rejects an unsupported file with 400 before uploading", async () => {
+  expect((await post(PID, withBrief("scan.png", "image/png"))).status).toBe(400);
+  expect(db.uploads).toEqual([]);
+  expect(parseBrief).not.toHaveBeenCalled();
+});
 it.each([
   [new BriefInputError("unreadable", "Can't read it."), 400],
   [new AiConfigError("no key"), 503],
@@ -336,7 +403,11 @@ it.each([
   expect(res.status).toBe(status);
   expect(db.removed).toEqual([db.uploads[0].path]);
 });
-it("returns 500 when the upload fails, without parsing", …);
+it("returns 500 when the upload fails, without parsing", async () => {
+  db.uploadError = { message: "bucket" };
+  expect((await post(PID, withBrief("brief.pdf", "application/pdf"))).status).toBe(500);
+  expect(parseBrief).not.toHaveBeenCalled();
+});
 ```
 
 - [ ] **Step 2: Run the tests and watch them fail.**
