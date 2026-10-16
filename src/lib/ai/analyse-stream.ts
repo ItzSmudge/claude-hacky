@@ -35,6 +35,9 @@ export async function* readAnalyseStream(
     const last = parse(buffer + decoder.decode());
     if (last) yield last;
   } finally {
+    // The caller may stop early (break / unmount): cancel so the server stops analysing.
+    // A no-op once the stream has ended.
+    await reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 }

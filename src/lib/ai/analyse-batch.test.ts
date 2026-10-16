@@ -7,6 +7,7 @@ import { analyseBatch, type AnalyseBatchDeps } from "./analyse-batch";
 import { AiConfigError, AiOutputError, AiRefusalError } from "./errors";
 
 const projectId = fixtureProject.id;
+const claimIds = fixtureProject.context.claims.map((c) => c.id);
 const papers = fixturePapers.map((f) => f.paper);
 const analysisOf = (paper: Paper): PaperAnalysis =>
   fixturePapers.find((f) => f.paper.id === paper.id)!.analysis;
@@ -49,7 +50,7 @@ describe("analyseBatch", () => {
   it("analyses each paper, saves it, and ends with done", async () => {
     const d = deps();
     const ids = papers.slice(0, 3).map((p) => p.id);
-    const events = await collect(analyseBatch({ projectId, paperIds: ids, deps: d }));
+    const events = await collect(analyseBatch({ projectId, claimIds, paperIds: ids, deps: d }));
     expect(events.map(idOf).sort()).toEqual([...ids, "done"].sort());
     expect(events.at(-1)).toEqual({ type: "done" });
     expect(d.save).toHaveBeenCalledTimes(3);
@@ -59,7 +60,9 @@ describe("analyseBatch", () => {
   it("dedupes paper ids", async () => {
     const d = deps();
     const id = papers[0]!.id;
-    const events = await collect(analyseBatch({ projectId, paperIds: [id, id], deps: d }));
+    const events = await collect(
+      analyseBatch({ projectId, claimIds, paperIds: [id, id], deps: d }),
+    );
     expect(events).toHaveLength(2);
     expect(d.analyse).toHaveBeenCalledTimes(1);
   });
@@ -70,7 +73,7 @@ describe("analyseBatch", () => {
       loadExisting: vi.fn(async () => [{ paperId: saved!.id, analysis: analysisOf(saved!) }]),
     });
     const events = await collect(
-      analyseBatch({ projectId, paperIds: [fresh!.id, saved!.id], deps: d }),
+      analyseBatch({ projectId, claimIds, paperIds: [fresh!.id, saved!.id], deps: d }),
     );
     expect(events.map(idOf)).toEqual([saved!.id, fresh!.id, "done"]);
     expect(d.analyse).toHaveBeenCalledTimes(1);
@@ -86,21 +89,61 @@ describe("analyseBatch", () => {
         { paperId: b!.id, analysis: { ...analysisOf(b!), projectId: "someone-else" } },
       ]),
     });
-    const events = await collect(analyseBatch({ projectId, paperIds: [a!.id, b!.id], deps: d }));
+    const events = await collect(
+      analyseBatch({ projectId, claimIds, paperIds: [a!.id, b!.id], deps: d }),
+    );
     expect(events.filter((e) => e.type === "analysis")).toHaveLength(2);
     expect(d.analyse).toHaveBeenCalledTimes(2);
+  });
+
+  it("re-analyses a saved row whose stances don't match the brief's current claims", async () => {
+    const [noBrief, reparsed] = papers;
+    const d = deps({
+      loadExisting: vi.fn(async () => [
+        { paperId: noBrief!.id, analysis: { ...analysisOf(noBrief!), stances: [] } },
+        {
+          paperId: reparsed!.id,
+          analysis: {
+            ...analysisOf(reparsed!),
+            stances: [{ claimId: "old1", stance: "supports", note: "x" }],
+          },
+        },
+      ]),
+    });
+    await collect(
+      analyseBatch({ projectId, claimIds, paperIds: [noBrief!.id, reparsed!.id], deps: d }),
+    );
+    expect(d.analyse).toHaveBeenCalledTimes(2);
+  });
+
+  it("reuses a no-stance analysis while the brief has no claims", async () => {
+    const [paper] = papers;
+    const d = deps({
+      loadExisting: vi.fn(async () => [
+        { paperId: paper!.id, analysis: { ...analysisOf(paper!), stances: [] } },
+      ]),
+    });
+    await collect(analyseBatch({ projectId, claimIds: [], paperIds: [paper!.id], deps: d }));
+    expect(d.analyse).not.toHaveBeenCalled();
   });
 
   it("treats a failed lookup of saved analyses as none saved", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const d = deps({ loadExisting: vi.fn(async () => Promise.reject(new Error("db down"))) });
-    const events = await collect(analyseBatch({ projectId, paperIds: [papers[0]!.id], deps: d }));
+    const events = await collect(
+      analyseBatch({ projectId, claimIds, paperIds: [papers[0]!.id], deps: d }),
+    );
     expect(events[0]?.type).toBe("analysis");
   });
 
   it("reports papers missing from the cache", async () => {
     const events = await collect(
-      analyseBatch({ projectId, paperIds: ["openalex-Wnope", papers[0]!.id], deps: deps() }),
+      analyseBatch({
+        projectId,
+        claimIds,
+        paperIds: ["openalex-Wnope", papers[0]!.id],
+        deps: deps(),
+      }),
     );
     expect(events).toContainEqual({
       type: "error",
@@ -114,7 +157,7 @@ describe("analyseBatch", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const ids = papers.slice(0, 2).map((p) => p.id);
     const d = deps({ loadPapers: vi.fn(async () => Promise.reject(new Error("db down"))) });
-    const events = await collect(analyseBatch({ projectId, paperIds: ids, deps: d }));
+    const events = await collect(analyseBatch({ projectId, claimIds, paperIds: ids, deps: d }));
     expect(events).toEqual([
       { type: "error", paperId: ids[0], error: "Analysis failed" },
       { type: "error", paperId: ids[1], error: "Analysis failed" },
@@ -131,7 +174,9 @@ describe("analyseBatch", () => {
         return analysisOf(paper);
       }),
     });
-    const done = collect(analyseBatch({ projectId, paperIds: [slow!.id, fast!.id], deps: d }));
+    const done = collect(
+      analyseBatch({ projectId, claimIds, paperIds: [slow!.id, fast!.id], deps: d }),
+    );
     await vi.runAllTimersAsync();
     expect((await done).map(idOf)).toEqual([fast!.id, slow!.id, "done"]);
   });
@@ -149,7 +194,9 @@ describe("analyseBatch", () => {
       }),
     });
     const ids = papers.slice(0, 10).map((p) => p.id);
-    const done = collect(analyseBatch({ projectId, paperIds: ids, deps: d, concurrency: 3 }));
+    const done = collect(
+      analyseBatch({ projectId, claimIds, paperIds: ids, deps: d, concurrency: 3 }),
+    );
     await vi.runAllTimersAsync();
     expect((await done).filter((e) => e.type === "analysis")).toHaveLength(10);
     expect(peak).toBe(3);
@@ -185,7 +232,7 @@ describe("analyseBatch", () => {
       }),
     });
     const events = await collect(
-      analyseBatch({ projectId, paperIds: [bad!.id, good!.id], deps: d }),
+      analyseBatch({ projectId, claimIds, paperIds: [bad!.id, good!.id], deps: d }),
     );
     expect(events).toContainEqual({ type: "error", paperId: bad!.id, error: message });
     expect(events).toContainEqual({ type: "analysis", analysis: analysisOf(good!) });
@@ -202,7 +249,9 @@ describe("analyseBatch", () => {
         throw new Error("rls");
       }),
     });
-    const events = await collect(analyseBatch({ projectId, paperIds: [papers[0]!.id], deps: d }));
+    const events = await collect(
+      analyseBatch({ projectId, claimIds, paperIds: [papers[0]!.id], deps: d }),
+    );
     expect(events.map((e) => e.type)).toEqual(["analysis", "done"]);
     expect(saved).toBe(true);
     expect(consoleError).toHaveBeenCalled();

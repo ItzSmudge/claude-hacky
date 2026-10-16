@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fixturePapers } from "@/fixtures";
 import type { AnalyseStreamEvent } from "@/lib/api-schemas";
 import { readAnalyseStream } from "./analyse-stream";
@@ -46,6 +46,20 @@ describe("readAnalyseStream", () => {
 
   it("reads a final line without a trailing newline", async () => {
     expect(await collect(streamOf('{"type":"done"}'))).toEqual([{ type: "done" }]);
+  });
+
+  it("cancels the body when the caller stops early, so the server stops work", async () => {
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(
+          new TextEncoder().encode(line({ type: "error", paperId: "a", error: "x" })),
+        );
+      },
+      cancel,
+    });
+    for await (const _event of readAnalyseStream(body)) break;
+    expect(cancel).toHaveBeenCalled();
   });
 
   it("skips blank, malformed and off-contract lines", async () => {

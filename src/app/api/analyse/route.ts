@@ -101,7 +101,8 @@ export async function POST(request: Request) {
   };
 
   const signal = AbortSignal.any([request.signal, AbortSignal.timeout(DEADLINE_MS)]);
-  const events = analyseBatch({ projectId, paperIds, deps, signal });
+  const claimIds = context.claims.map((claim) => claim.id);
+  const events = analyseBatch({ projectId, paperIds, deps, claimIds, signal });
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async pull(controller) {

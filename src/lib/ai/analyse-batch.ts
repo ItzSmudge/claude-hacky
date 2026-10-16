@@ -22,9 +22,17 @@ export interface AnalyseBatchInput {
   projectId: string;
   paperIds: string[];
   deps: AnalyseBatchDeps;
+  /**
+   * The brief's current claim ids. A saved analysis is reused only if its stances cover exactly
+   * these, so analyses made before the brief was parsed (or re-parsed) are redone.
+   */
+  claimIds: string[];
   signal?: AbortSignal;
   concurrency?: number;
 }
+
+/** How long `done` waits for outstanding saves. */
+const SAVE_GRACE_MS = 3_000;
 
 const SUMMARY_FAILED = "Couldn't summarise this paper";
 const BUSY = "AI is busy — try again";
@@ -56,6 +64,7 @@ export async function* analyseBatch({
   projectId,
   paperIds,
   deps,
+  claimIds,
   signal = new AbortController().signal,
   concurrency = 5,
 }: AnalyseBatchInput): AsyncGenerator<AnalyseStreamEvent> {
@@ -66,11 +75,16 @@ export async function* analyseBatch({
     console.error("[analyse] loading saved analyses failed", error);
     return [];
   });
+  const sameClaims = (analysis: PaperAnalysis) => {
+    const ids = new Set(analysis.stances.map((s) => s.claimId));
+    return ids.size === claimIds.length && claimIds.every((id) => ids.has(id));
+  };
   const done = new Set<string>();
   for (const row of existing) {
     const parsed = paperAnalysisSchema.safeParse(row.analysis);
     if (!parsed.success || done.has(row.paperId) || !ids.includes(row.paperId)) continue;
     if (parsed.data.paperId !== row.paperId || parsed.data.projectId !== projectId) continue;
+    if (!sameClaims(parsed.data)) continue;
     done.add(row.paperId);
     yield { type: "analysis", analysis: parsed.data };
   }
@@ -120,7 +134,7 @@ export async function* analyseBatch({
   const queue = todo.flatMap((id) => byId.get(id) ?? []);
   const inFlight = new Map<string, Promise<{ id: string; event: AnalyseStreamEvent }>>();
   while (queue.length || inFlight.size) {
-    while (inFlight.size < concurrency && queue.length) {
+    while (inFlight.size < Math.max(1, concurrency) && queue.length) {
       const paper = queue.shift()!;
       inFlight.set(
         paper.id,
@@ -132,7 +146,13 @@ export async function* analyseBatch({
     yield event;
   }
 
-  // Serverless functions may stop once the response ends: finish writes before `done`.
-  await Promise.all(saves);
+  // Serverless functions may stop once the response ends: finish writes before `done`, but don't
+  // let a hung write hold the stream open past the function limit.
+  let grace: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([
+    Promise.all(saves),
+    new Promise((resolve) => (grace = setTimeout(resolve, SAVE_GRACE_MS))),
+  ]);
+  clearTimeout(grace);
   yield { type: "done" };
 }
