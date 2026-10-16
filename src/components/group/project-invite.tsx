@@ -26,6 +26,7 @@ export async function ProjectInvite({ projectId }: { projectId: string }) {
     <InviteDialog
       code={project.data.join_code}
       title={project.data.title}
+      groupHref={`/app/p/${projectId}/group`}
       memberCount={Math.max(1, members.count ?? 1)}
     />
   );

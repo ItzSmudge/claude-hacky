@@ -66,6 +66,13 @@ async function Library({ params }: Pick<PageProps<"/app/p/[projectId]/library">,
     <>
       <header className="flex flex-col gap-1">
         {heading}
+        {/* GR-03 */}
+        <Link
+          href={`/app/p/${projectId}/group`}
+          className="self-start rounded text-sm font-medium text-primary underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden"
+        >
+          See what the whole group saved
+        </Link>
         <p className="text-muted-foreground">
           {papers.length === 0
             ? title

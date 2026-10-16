@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, Copy, Share2, UserPlus, X } from "lucide-react";
+import { Check, Copy, Share2, UserPlus, Users, X } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -42,10 +43,13 @@ export function InviteDialog({
   code,
   memberCount,
   title,
+  groupHref,
 }: {
   code: string;
   memberCount: number;
   title: string;
+  /** The group reading list (GR-03). */
+  groupHref: string;
 }) {
   const id = useId();
   const origin = useOrigin();
@@ -175,7 +179,19 @@ export function InviteDialog({
         <p role="status" aria-live="polite" className="sr-only">
           {copied ? "Invite link copied" : ""}
         </p>
-        <p className="text-sm text-muted-foreground">{people}</p>
+        <p className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
+          {people}
+          <Link
+            href={groupHref}
+            className={cn(
+              "inline-flex min-h-11 items-center gap-1.5 rounded-xl font-medium text-primary underline underline-offset-4",
+              DIALOG_RING,
+            )}
+          >
+            <Users className="size-4" strokeWidth={1.75} aria-hidden />
+            Group reading list
+          </Link>
+        </p>
       </DialogContent>
     </Dialog>
   );
