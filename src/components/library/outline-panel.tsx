@@ -18,6 +18,8 @@ const FAILURE: Record<number, string> = {
 };
 const EMPTY = "Couldn't draft an outline from these papers. Try again.";
 
+type Format = "LaTeX" | "Markdown";
+
 /** Errors whose message is written for students; anything else (network, parse) gets the default. */
 class FriendlyError extends Error {}
 
@@ -87,8 +89,9 @@ export function OutlinePanel({
     }
   }
 
-  async function copy(format: "LaTeX" | "Markdown") {
-    if (state.kind !== "done") return;
+  /** Resolves false when the clipboard refuses, so the result can show the text to select. */
+  async function copy(format: Format): Promise<boolean> {
+    if (state.kind !== "done") return false;
     const text =
       format === "LaTeX"
         ? outlineLatex(state.sections, keys)
@@ -96,8 +99,10 @@ export function OutlinePanel({
     try {
       await navigator.clipboard.writeText(text);
       setStatus(`Copied ${format} outline`);
+      return true;
     } catch {
-      setStatus("Couldn't copy. Select the text instead.");
+      setStatus(`Couldn't copy. The ${format} is shown below: select it to copy.`);
+      return false;
     }
   }
 
@@ -176,8 +181,20 @@ function OutlineResult({
   sections: ProjectOutline["sections"];
   papers: RelationPaper[];
   keys: Map<string, string>;
-  onCopy: (format: "LaTeX" | "Markdown") => void;
+  onCopy: (format: Format) => Promise<boolean>;
 }) {
+  const shown = {
+    LaTeX: useRef<HTMLDetailsElement>(null),
+    Markdown: useRef<HTMLDetailsElement>(null),
+  };
+  // Clipboard refused (insecure context, in-app browsers): open the text and move focus to it.
+  async function copyOrShow(format: Format) {
+    if (await onCopy(format)) return;
+    const details = shown[format].current;
+    if (!details) return;
+    details.open = true;
+    details.querySelector("summary")?.focus();
+  }
   const byId = new Map(papers.map((p) => [p.id, p]));
   const unused = unusedPaperIds(
     sections,
@@ -236,7 +253,7 @@ function OutlineResult({
             key={format}
             type="button"
             variant="outline"
-            onClick={() => onCopy(format)}
+            onClick={() => copyOrShow(format)}
             className={`h-11 rounded-xl px-4 hc:border-2 ${FOCUS_RING}`}
           >
             <Copy className="size-5" strokeWidth={1.75} aria-hidden />
@@ -245,14 +262,21 @@ function OutlineResult({
         ))}
       </div>
 
-      <details className="rounded-xl border border-border bg-background p-3 hc:border-2">
-        <summary className={`cursor-pointer rounded text-sm font-medium ${FOCUS_RING}`}>
-          Show LaTeX
-        </summary>
-        <pre className="mt-3 overflow-x-auto font-mono text-xs whitespace-pre-wrap">
-          {outlineLatex(sections, keys)}
-        </pre>
-      </details>
+      {(["LaTeX", "Markdown"] as const).map((format) => (
+        <details
+          key={format}
+          ref={shown[format]}
+          className="rounded-xl border border-border bg-background px-3 hc:border-2"
+        >
+          {/* 44px tall so it's easy to tap on a phone. */}
+          <summary className="flex min-h-11 cursor-pointer items-center rounded-lg px-1 text-sm font-medium focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+            Show {format}
+          </summary>
+          <pre className="mb-3 overflow-x-auto font-mono text-xs whitespace-pre-wrap">
+            {format === "LaTeX" ? outlineLatex(sections, keys) : outlineMarkdown(sections, keys)}
+          </pre>
+        </details>
+      ))}
     </div>
   );
 }

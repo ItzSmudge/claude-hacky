@@ -54,6 +54,39 @@ describe("finaliseOutline", () => {
     expect(out[0]!.points).toEqual([{ text: "Fine.", paperIds: [p1] }]);
   });
 
+  it.each([
+    "Early work [@smith2019] found small effects.",
+    "Early work \\cite{smith2019} found small effects.",
+    "Smith et al. found small effects.",
+    "Small effects were found (2019).",
+    "Small effects were found (Smith, 2019).",
+  ])("drops a point that writes its own citation: %s", (text) => {
+    const out = finaliseOutline(
+      reply({ heading: "Themes", points: [point(text, ["P1"]), point("Fine.", ["P2"])] }),
+      aliases,
+    );
+    expect(out[0]!.points).toEqual([{ text: "Fine.", paperIds: [p2] }]);
+  });
+
+  it("drops a section whose heading writes a citation", () => {
+    const out = finaliseOutline(
+      reply({ heading: "Smith et al. revisited", points: [point("Fine.", ["P1"])] }),
+      aliases,
+    );
+    expect(out).toEqual([]);
+  });
+
+  it("keeps text that only looks like an alias", () => {
+    const out = finaliseOutline(
+      reply({
+        heading: "Mechanisms",
+        points: [point("p53 and P300 responses differ since 2019.", ["P1"])],
+      }),
+      aliases,
+    );
+    expect(out[0]!.points).toHaveLength(1);
+  });
+
   it("drops a section whose heading echoes a saved title", () => {
     const title = "Social media use and adolescent wellbeing";
     const out = finaliseOutline(

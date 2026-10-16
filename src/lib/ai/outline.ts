@@ -21,7 +21,9 @@ Draft the skeleton of a literature review for the brief: 3 to 6 sections in a se
 
 Refer to papers only by their aliases. Never write titles, author names, venues, years, DOIs, URLs or citations: the app adds real bibliographic data itself. Write in plain UK English and keep to every word limit in the schema.`;
 
-const ALIAS_IN_TEXT = /\bP\d+\b/i;
+const ALIAS_IN_TEXT = /\bP\d+\b/g;
+/** Citations the model wrote itself: pandoc `[@key]`, `\cite`, "et al.", or a year in brackets. */
+const CITATION_IN_TEXT = /@\w|\\cite|\bet al\b|\([^()]*\b(?:19|20)\d{2}[a-z]?\s*\)/i;
 
 /** Pure. Papers get aliases P1…Pn (returned so the reply can be mapped back). */
 export function buildOutlinePrompt(
@@ -50,9 +52,9 @@ export function buildOutlinePrompt(
 }
 
 /**
- * Pure. Aliases → ids. Unknown aliases and repeats are discarded; points that name an alias in
- * their text or are left with no papers are dropped; sections whose heading echoes a saved title
- * or that are left with no points are dropped.
+ * Pure. Aliases → ids. Unknown aliases and repeats are discarded. Headings and points that name an
+ * alias, write their own citation or echo a saved title are dropped (the model must never output
+ * bibliographic data), as are points left with no papers and sections left with no points.
  */
 export function finaliseOutline(
   output: OutlineOutput,
@@ -61,10 +63,15 @@ export function finaliseOutline(
 ): ProjectOutline["sections"] {
   const idOf = (alias: string) => aliases.get(alias.trim().toUpperCase());
   const echoesTitle = titleEchoCheck(titles);
+  // Only aliases actually given count, so "p53" or "P300" in ordinary text survive.
+  const namesAlias = (text: string) =>
+    (text.match(ALIAS_IN_TEXT) ?? []).some((alias) => aliases.has(alias));
+  const unsafe = (text: string) =>
+    namesAlias(text) || CITATION_IN_TEXT.test(text) || echoesTitle(text);
   return output.sections.flatMap(({ heading, points }) => {
-    if (echoesTitle(heading)) return [];
+    if (unsafe(heading)) return [];
     const kept = points.flatMap(({ text, papers }) => {
-      if (ALIAS_IN_TEXT.test(text) || echoesTitle(text)) return [];
+      if (unsafe(text)) return [];
       const paperIds = [...new Set(papers.map(idOf).filter((id) => id !== undefined))];
       return paperIds.length ? [{ text, paperIds }] : [];
     });
