@@ -21,7 +21,7 @@ type State =
   | { status: "error" };
 
 /** Phones: the history sidebar as a sheet. Fetches GET /api/projects each time it opens. */
-export function MobileProjects({ userId, demoHref }: { userId?: string; demoHref: string }) {
+export function MobileProjects({ userId }: { userId?: string }) {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<State>({ status: "loading" });
 
@@ -98,7 +98,6 @@ export function MobileProjects({ userId, demoHref }: { userId?: string; demoHref
             <ProjectNav
               projects={state.projects}
               userId={userId}
-              demoHref={demoHref}
               onNavigate={() => setOpen(false)}
               onChanged={() => void load()}
             />
