@@ -248,7 +248,7 @@ export function GroupReadingList({
       </p>
       {memberCount === 1 && (
         <p className="rounded-xl border border-dashed border-border px-4 py-3 text-sm">
-          Only you so far. Use <strong>Invite</strong> on the swipe page to bring teammates in, then
+          Only you so far. Use <strong>Invite</strong> at the top to bring teammates in, then
           compare picks here.
         </p>
       )}

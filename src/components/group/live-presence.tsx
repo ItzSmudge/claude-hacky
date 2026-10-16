@@ -149,7 +149,7 @@ const FEED_MS = 5000;
  * user's token, and then RLS sees an anonymous viewer and drops every swipes change. Presence
  * doesn't need it; postgres changes do, so set the token before subscribing.
  */
-async function authoriseRealtime() {
+export async function authoriseRealtime() {
   const supabase = getSupabaseBrowserClient();
   const { data } = await supabase.auth.getSession();
   if (data.session) await supabase.realtime.setAuth(data.session.access_token);

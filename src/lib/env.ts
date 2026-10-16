@@ -22,6 +22,8 @@ const clientSchema = z.object({
   NEXT_PUBLIC_FEATURE_GROUPS: flag(true),
   NEXT_PUBLIC_FEATURE_ADAPTIVE: flag(true),
   NEXT_PUBLIC_FEATURE_VOICE: flag(false),
+  // Read aloud uses ElevenLabs via /api/tts when on; the device voice otherwise (and on failure).
+  NEXT_PUBLIC_FEATURE_ELEVENLABS: flag(false),
 });
 
 const serverSchema = clientSchema.extend({
@@ -33,6 +35,9 @@ const serverSchema = clientSchema.extend({
   OPENALEX_MAILTO: optStr(),
   SEMANTIC_SCHOLAR_API_KEY: optStr(),
   CROSSREF_MAILTO: optStr(),
+  ELEVENLABS_API_KEY: optStr(),
+  ELEVENLABS_VOICE_ID: z.preprocess(blank, z.string().default("bGnz83yTAb7caZSC7BBz")),
+  ELEVENLABS_MODEL_ID: z.preprocess(blank, z.string().default("eleven_flash_v2_5")),
 });
 
 export type ClientEnv = z.infer<typeof clientSchema>;
@@ -60,6 +65,7 @@ const clientSource = {
   NEXT_PUBLIC_FEATURE_GROUPS: process.env.NEXT_PUBLIC_FEATURE_GROUPS,
   NEXT_PUBLIC_FEATURE_ADAPTIVE: process.env.NEXT_PUBLIC_FEATURE_ADAPTIVE,
   NEXT_PUBLIC_FEATURE_VOICE: process.env.NEXT_PUBLIC_FEATURE_VOICE,
+  NEXT_PUBLIC_FEATURE_ELEVENLABS: process.env.NEXT_PUBLIC_FEATURE_ELEVENLABS,
 };
 
 export const clientEnv: ClientEnv = parse(clientSchema, clientSource, "client");

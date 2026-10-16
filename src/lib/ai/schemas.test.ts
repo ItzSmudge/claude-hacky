@@ -103,13 +103,14 @@ describe("paperAnalysisOutputSchema", () => {
       expect(keys).not.toContain(banned);
   });
 
+  // The reply schema allows 1.5× slack; paper-analysis.ts fits fields to the exact limit.
   it.each([
-    ["overview", "word ".repeat(36)],
-    ["whyItMatters", "word ".repeat(21)],
-    ["relevanceReason", "word ".repeat(9)],
-    ["methodology", "word ".repeat(16)],
-    ["limitations", "word ".repeat(16)],
-  ])("enforces the %s word limit", (field, text) => {
+    ["overview", "word ".repeat(53)],
+    ["whyItMatters", "word ".repeat(31)],
+    ["relevanceReason", "word ".repeat(13)],
+    ["methodology", "word ".repeat(23)],
+    ["limitations", "word ".repeat(23)],
+  ])("rejects a %s far over its word limit", (field, text) => {
     expect(paperAnalysisOutputSchema.safeParse({ ...valid, [field]: text }).success).toBe(false);
   });
 
@@ -198,5 +199,62 @@ describe("briefContextOutputSchema", () => {
     expect(json).toMatch(/at most 25 words/i);
     expect(json).toMatch(/up to 6 claims/i);
     expect(json).toContain(String.raw`exactly \"not stated\"`);
+  });
+});
+
+describe("word-limit slack (paper analysis only)", () => {
+  const w = (n: number) => Array.from({ length: n }, () => "teen").join(" ");
+  const card = (overrides: Record<string, unknown>) => ({
+    overview: "A study.",
+    whyItMatters: "Relevant.",
+    relevance: 80,
+    relevanceReason: "On topic",
+    stances: [],
+    methodology: "Survey.",
+    limitations: "not stated",
+    useAs: "evidence",
+    ...overrides,
+  });
+
+  it("accepts a reply a little over the limit, for code to fit afterwards", () => {
+    expect(paperAnalysisOutputSchema.safeParse(card({ overview: w(45) })).success).toBe(true);
+    expect(paperAnalysisOutputSchema.safeParse(card({ relevanceReason: w(11) })).success).toBe(
+      true,
+    );
+  });
+
+  it("still rejects a reply far over the limit", () => {
+    expect(paperAnalysisOutputSchema.safeParse(card({ overview: w(60) })).success).toBe(false);
+  });
+
+  it("still tells the model the real limit", () => {
+    expect(JSON.stringify(z.toJSONSchema(paperAnalysisOutputSchema))).toContain("at most 35 words");
+  });
+
+  it("leaves other schemas strict", () => {
+    expect(words(3).safeParse(w(4)).success).toBe(false);
+    expect(words(3, { slack: 1.5 }).safeParse(w(4)).success).toBe(true);
+    expect(words(3, { slack: 1.5 }).safeParse(w(6)).success).toBe(false);
+  });
+});
+
+describe("paper card limits (review should-fix 6 and 7)", () => {
+  it("builds the reply schema and the rewrite schema from one set of limits", async () => {
+    const { PAPER_CARD_LIMITS, shortenedFieldOutputSchema } = await import("./schemas");
+    expect(PAPER_CARD_LIMITS).toEqual({
+      overview: 35,
+      whyItMatters: 20,
+      relevanceReason: 8,
+      methodology: 15,
+      limitations: 15,
+      note: 12,
+    });
+    const w = (n: number) => Array.from({ length: n }, () => "teen").join(" ");
+    expect(shortenedFieldOutputSchema(8).safeParse({ text: w(8) }).success).toBe(true);
+    expect(shortenedFieldOutputSchema(8).safeParse({ text: w(9) }).success).toBe(false); // strict, no slack
+    expect(shortenedFieldOutputSchema(8).safeParse({ text: "See https://x.org" }).success).toBe(
+      false,
+    );
+    expect(shortenedFieldOutputSchema(8).parse({ text: "not stated" }).text).toBe("not stated");
   });
 });
