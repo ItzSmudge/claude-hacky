@@ -106,8 +106,8 @@ export function DemoCardStack({ cards }: { cards: DemoCard[] }) {
 
 function MiniCard({ card, stamp }: { card: DemoCard; stamp?: "save" | "skip" }) {
   return (
-    <div className="relative flex flex-col gap-3 rounded-2xl border border-cream-300 bg-card p-5 text-left text-card-foreground shadow-paper-lg dark:border-teal-800">
-      <div className="flex items-start justify-between gap-3 border-b border-primary/30 pb-3 text-sm text-muted-foreground">
+    <div className="relative flex flex-col gap-3 rounded-2xl border border-cream-300 bg-card p-5 text-left text-card-foreground shadow-paper-lg dark:border-teal-800 hc:border-2 hc:border-border">
+      <div className="flex items-start justify-between gap-3 border-b border-primary/30 pb-3 text-sm text-muted-foreground hc:border-primary">
         <span className="line-clamp-2 min-w-0">{card.meta}</span>
         <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent px-2.5 py-1 font-medium text-accent-foreground tabular-nums">
           <ShieldCheck className="size-4" strokeWidth={1.75} />

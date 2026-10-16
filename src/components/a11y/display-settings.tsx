@@ -1,7 +1,7 @@
 "use client";
 
 import { Accessibility } from "lucide-react";
-import { useSyncExternalStore } from "react";
+import { useId, useSyncExternalStore } from "react";
 import { CONTRAST_STORAGE_KEY, TEXT_SIZE_STORAGE_KEY } from "@/components/theme/theme-script";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -47,20 +47,27 @@ const RING =
 
 function Switch({ setting, label, hint }: { setting: Setting; label: string; hint: string }) {
   const on = useSetting(setting);
+  const id = useId();
   return (
     <button
       type="button"
       role="switch"
       aria-checked={on}
+      aria-labelledby={`${id}-label`}
+      aria-describedby={`${id}-hint`}
       onClick={() => toggle(setting)}
       className={cn(
-        "flex min-h-11 w-full items-center justify-between gap-4 rounded-xl px-3 py-2 text-left hover:bg-muted",
+        "flex min-h-11 w-full items-center justify-between gap-4 rounded-xl px-3 py-2 text-left hover:bg-muted hc:hover:bg-accent",
         RING,
       )}
     >
       <span className="flex flex-col">
-        <span className="font-medium">{label}</span>
-        <span className="text-sm text-muted-foreground">{hint}</span>
+        <span id={`${id}-label`} className="font-medium">
+          {label}
+        </span>
+        <span id={`${id}-hint`} className="text-sm text-muted-foreground">
+          {hint}
+        </span>
       </span>
       {/* Track and thumb; "On"/"Off" is also shown in words, never by colour alone. */}
       <span className="flex shrink-0 items-center gap-2">
@@ -103,7 +110,7 @@ export function DisplaySettings() {
           <Accessibility className="size-5" strokeWidth={1.75} aria-hidden />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 p-2">
+      <PopoverContent align="end" className="w-72 p-2 hc:ring-2 hc:ring-border">
         <p className="px-3 pt-1 pb-2 font-display text-base font-semibold text-primary">Display</p>
         <div className="flex flex-col gap-1">
           <Switch setting="contrast" label="High contrast" hint="Stronger colours and borders" />
