@@ -184,6 +184,48 @@ export const projectRelationsSchema = z.object({
 });
 export type ProjectRelations = z.infer<typeof projectRelationsSchema>;
 
+/**
+ * RD-04: what the SMART model returns for a lit-review outline. Papers appear only as aliases
+ * P1…Pn; code maps them back to ids and renders every cite key (see `finaliseOutline`).
+ */
+export const outlineOutputSchema = z.object({
+  sections: z
+    .array(
+      z.object({
+        heading: words(8, relation).describe("The section heading, at most 8 words."),
+        points: z
+          .array(
+            z.object({
+              text: words(30, relation).describe(
+                "One sentence of at most 30 words a student could expand into a paragraph.",
+              ),
+              papers: z
+                .array(z.string())
+                .describe("Aliases (e.g. P2) of the papers this point draws on."),
+            }),
+          )
+          .max(5),
+      }),
+    )
+    .max(6)
+    .describe("Up to 6 sections in reading order."),
+});
+export type OutlineOutput = z.infer<typeof outlineOutputSchema>;
+
+/** RD-04: POST /api/analyse/outline → `{ outline }`. Client-safe so the library panel can parse it. */
+export const projectOutlineSchema = z.object({
+  projectId: z.string(),
+  /** Saved papers considered. */
+  paperCount: z.int().nonnegative(),
+  sections: z.array(
+    z.object({
+      heading: z.string(),
+      points: z.array(z.object({ text: z.string(), paperIds: z.array(z.string()).min(1) })),
+    }),
+  ),
+});
+export type ProjectOutline = z.infer<typeof projectOutlineSchema>;
+
 /** RK-03: the SMART model's rewording of one ranking insight. Code supplies the pattern. */
 export const insightOutputSchema = z.object({
   sentence: words(18, { noLinks: true }).describe(

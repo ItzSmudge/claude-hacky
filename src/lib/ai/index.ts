@@ -20,6 +20,13 @@ export {
 export { MAX_BRIEF_BYTES, MAX_BRIEF_CHARS, type BriefFile } from "./brief-input";
 export { briefContextOutputSchema, normaliseNotStated, type BriefContextOutput } from "./schemas";
 export { analyseRelations, type AnalyseRelationsInput } from "./relations";
+export { draftOutline, type DraftOutlineInput } from "./outline";
+export {
+  outlineOutputSchema,
+  projectOutlineSchema,
+  type OutlineOutput,
+  type ProjectOutline,
+} from "./schemas";
 export {
   projectRelationsSchema,
   relationsOutputSchema,

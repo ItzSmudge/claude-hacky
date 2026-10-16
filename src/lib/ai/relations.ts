@@ -62,7 +62,12 @@ export function selectPapers(papers: Paper[], analyses: Map<string, PaperAnalysi
   return [...papers].sort((a, b) => score(b) - score(a)).slice(0, MAX_RELATION_PAPERS);
 }
 
-function paperBlock(alias: string, paper: Paper, analysis: PaperAnalysis | undefined): string {
+/** A paper as the model sees it: alias, title and card summary, no ids or bibliography. */
+export function paperBlock(
+  alias: string,
+  paper: Paper,
+  analysis: PaperAnalysis | undefined,
+): string {
   const lines = [`[${alias}]`, `Title: ${strip(paper.title)}`];
   if (paper.topics.length) lines.push(`Topics: ${paper.topics.map(strip).join("; ")}`);
   if (analysis) {
@@ -114,6 +119,16 @@ const normalise = (text: string) =>
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 
+/** Pure. Whether a text echoes one of these titles (the model must never output titles). */
+export function titleEchoCheck(titles: readonly string[]): (text: string) => boolean {
+  // Very short titles would match ordinary phrases, so only check those of 3+ words.
+  const known = titles.map(normalise).filter((t) => t.split(" ").length >= 3);
+  return (text) => {
+    const haystack = ` ${normalise(text)} `;
+    return known.some((title) => haystack.includes(` ${title} `));
+  };
+}
+
 /**
  * Pure. Aliases → ids. Unknown aliases are discarded, as are self-pairs, repeat pairs (either
  * order), method groups left with fewer than two papers, and any label or note that echoes a
@@ -125,12 +140,7 @@ export function finaliseRelations(
   titles: string[] = [],
 ): Pick<ProjectRelations, "methods" | "pairs"> {
   const idOf = (alias: string) => aliases.get(alias.trim().toUpperCase());
-  // Very short titles would match ordinary phrases, so only check those of 3+ words.
-  const known = titles.map(normalise).filter((t) => t.split(" ").length >= 3);
-  const echoesTitle = (text: string) => {
-    const haystack = ` ${normalise(text)} `;
-    return known.some((title) => haystack.includes(` ${title} `));
-  };
+  const echoesTitle = titleEchoCheck(titles);
 
   const methods = output.methods.flatMap(({ label, papers }) => {
     if (echoesTitle(label)) return [];
