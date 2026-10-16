@@ -9,7 +9,7 @@ import {
   extractFeatures,
   featurePhrase,
   findInsight,
-  keepHead,
+  pinnedOrder,
   rankItems,
   templateSentence,
   type Insight,
@@ -294,17 +294,18 @@ export function PersistedSwipeDeck({
   const filters = useDeckFilters(projectId);
   // A card brought back by Undo stays even if a filter would hide it, or Undo would seem to fail.
   const [undoneId, setUndoneId] = useState<string | null>(null);
-  // RK-04: when only a teammate's swipe changed the order, keep the top cards where they are.
+  // RK-04: re-rank when any input changes, but keep the top cards unless I acted (pinnedOrder).
   // The last order lives in state (React's "previous render" pattern) so it can be compared.
-  const ownInputs = [items, featureIds, decisions, history, filters.active, undoneId];
+  // Every entry must be referentially stable across renders, or each render would re-rank forever.
+  const mine = [decisions, filters.active, undoneId];
+  const inputs = [...mine, items, featureIds, history, teamHistories];
   const [lastRank, setLastRank] = useState<{
-    own: unknown[];
-    team: SwipeSample[][];
+    inputs: unknown[];
+    mine: unknown[];
     ranked: DeckItem[];
   } | null>(null);
-  const ownSame = !!lastRank && lastRank.own.every((input, i) => input === ownInputs[i]);
   let ranked: DeckItem[];
-  if (lastRank && ownSame && lastRank.team === teamHistories) {
+  if (lastRank && lastRank.inputs.every((input, i) => input === inputs[i])) {
     ranked = lastRank.ranked;
   } else {
     const decided = new Set(decisions.map((d) => d.paperId));
@@ -319,9 +320,8 @@ export function PersistedSwipeDeck({
       (i) => (i.paper.id === undoneId ? [] : idsOf(i)),
       toDeckFilters(filters.active),
     );
-    ranked =
-      lastRank && ownSame ? keepHead(lastRank.ranked, next, PINNED_CARDS, (i) => i.paper.id) : next;
-    setLastRank({ own: ownInputs, team: teamHistories, ranked });
+    ranked = pinnedOrder(lastRank, mine, next, (i) => i.paper.id, PINNED_CARDS);
+    setLastRank({ inputs, mine, ranked });
   }
 
   // RK-03: after enough swipes, offer one clear pattern as a toast with a one-tap filter.

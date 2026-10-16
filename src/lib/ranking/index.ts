@@ -3,6 +3,7 @@ export {
   applyTeamChange,
   combineWeights,
   keepHead,
+  pinnedOrder,
   teamDecisionsFrom,
   teamSwipeChange,
   type TeamDecisions,

@@ -3,6 +3,7 @@ import {
   applyTeamChange,
   combineWeights,
   keepHead,
+  pinnedOrder,
   teamDecisionsFrom,
   teamSwipeChange,
 } from "./group";
@@ -162,5 +163,29 @@ describe("applyTeamChange", () => {
   it("doesn't change the map it was given", () => {
     applyTeamChange(team, { userId: "u2", paperId: "a", decision: null });
     expect(team.get("u2")?.get("a")).toBe("skip");
+  });
+});
+
+describe("pinnedOrder", () => {
+  const decisions = ["d1"];
+  const filters = ["f1"];
+
+  it("takes the new order on the first rank", () => {
+    expect(pinnedOrder(null, [decisions, filters], ["b", "a"])).toEqual(["b", "a"]);
+  });
+
+  it("keeps the top two when I did nothing, even if new papers loaded", () => {
+    const last = { mine: [decisions, filters], ranked: ["a", "b", "c"] };
+    expect(pinnedOrder(last, [decisions, filters], ["c", "x", "b", "a"])).toEqual([
+      "a",
+      "b",
+      "c",
+      "x",
+    ]);
+  });
+
+  it("re-ranks everything after my own swipe, undo or filter", () => {
+    const last = { mine: [decisions, filters], ranked: ["a", "b", "c"] };
+    expect(pinnedOrder(last, [["d1", "d2"], filters], ["c", "b"])).toEqual(["c", "b"]);
   });
 });

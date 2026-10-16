@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { authoriseRealtime } from "@/components/group/live-presence";
 import {
   applyTeamChange,
@@ -35,31 +36,39 @@ export function useTeamHistories({
     if (!userId) return;
     const supabase = getSupabaseBrowserClient();
     let cancelled = false;
+    let channel: RealtimeChannel | undefined;
     const onChange = (payload: unknown) => {
       const change = teamSwipeChange(payload, { projectId, me: userId });
       if (change) setTeam((current) => applyTeamChange(current, change));
     };
-    const filter = `project_id=eq.${projectId}`;
-    const channel = supabase
-      .channel(`deck-team:${projectId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "swipes", filter },
-        onChange,
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "swipes", filter },
-        onChange,
-      )
-      // DELETE can't be filtered by column; teamSwipeChange checks the project instead.
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "swipes" }, onChange);
-    void authoriseRealtime().then(() => {
-      if (!cancelled) channel.subscribe();
-    });
+    void (async () => {
+      await authoriseRealtime();
+      // A channel with this topic may still be leaving (fast remount): channel() would hand it
+      // back and subscribe() would do nothing, so wait for it to go first.
+      const topic = `deck-team:${projectId}`;
+      const stale = supabase.getChannels().find((c) => c.topic === `realtime:${topic}`);
+      if (stale) await supabase.removeChannel(stale);
+      if (cancelled) return;
+      const filter = `project_id=eq.${projectId}`;
+      channel = supabase
+        .channel(topic)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "swipes", filter },
+          onChange,
+        )
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "swipes", filter },
+          onChange,
+        )
+        // DELETE can't be filtered by column; teamSwipeChange checks the project instead.
+        .on("postgres_changes", { event: "DELETE", schema: "public", table: "swipes" }, onChange);
+      channel.subscribe();
+    })();
     return () => {
       cancelled = true;
-      void supabase.removeChannel(channel);
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [projectId, userId]);
 

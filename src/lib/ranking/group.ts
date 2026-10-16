@@ -48,6 +48,22 @@ export function keepHead<T>(
   return [...head, ...next.filter((item) => !pinned.has(key(item)))];
 }
 
+/**
+ * The deck's next order: `next` as is after anything I did (swipe, undo, filter — compared by
+ * identity in `mine`), otherwise with the top `n` cards of the last order kept, so a teammate's swipe
+ * or a paper's analysis landing never moves the card I'm looking at or the one under it.
+ */
+export function pinnedOrder<T>(
+  last: { mine: readonly unknown[]; ranked: T[] } | null,
+  mine: readonly unknown[],
+  next: T[],
+  key?: (item: T) => unknown,
+  n = 2,
+): T[] {
+  if (!last || last.mine.some((input, i) => input !== mine[i])) return next;
+  return keepHead(last.ranked, next, n, key);
+}
+
 /** Each teammate's decisions by paper, in the order they first swiped it. */
 export type TeamDecisions = Map<string, Map<string, SwipeDecision>>;
 
