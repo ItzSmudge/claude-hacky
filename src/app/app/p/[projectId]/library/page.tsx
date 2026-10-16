@@ -37,9 +37,7 @@ async function Library({ params }: Pick<PageProps<"/app/p/[projectId]/library">,
   const userId = auth?.claims.sub;
   if (!loaded.ok && loaded.reason === "not-found") notFound();
 
-  const heading = (
-    <h1 className="font-display text-2xl font-semibold text-primary md:text-3xl">Library</h1>
-  );
+  const heading = <h2 className="sr-only">Library</h2>;
   if (!loaded.ok) {
     return (
       <>
@@ -51,7 +49,7 @@ async function Library({ params }: Pick<PageProps<"/app/p/[projectId]/library">,
     );
   }
 
-  const { title, claims, papers, analyses, savedBy } = loaded.library;
+  const { claims, papers, analyses, savedBy } = loaded.library;
   const keys = citeKeys(papers);
   const sortedKeys = sortByKey(papers, keys).map((p) => keys.get(p.id)!);
   const items: LibraryItem[] = papers.map((paper) => ({
@@ -67,17 +65,10 @@ async function Library({ params }: Pick<PageProps<"/app/p/[projectId]/library">,
     <>
       <header className="flex flex-col gap-1">
         {heading}
-        {/* GR-03 */}
-        <Link
-          href={`/app/p/${projectId}/group`}
-          className="inline-flex min-h-11 items-center self-start rounded text-sm font-medium text-primary underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden"
-        >
-          See what the whole group saved
-        </Link>
         <p className="text-muted-foreground">
           {papers.length === 0
-            ? title
-            : `${papers.length} ${papers.length === 1 ? "paper" : "papers"} saved for ${title}`}
+            ? "No papers saved yet"
+            : `${papers.length} ${papers.length === 1 ? "paper" : "papers"} saved`}
         </p>
       </header>
       {papers.length === 0 ? (
