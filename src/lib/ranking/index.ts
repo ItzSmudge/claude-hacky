@@ -7,3 +7,12 @@ export {
   type SwipeSample,
   type Weights,
 } from "./weights";
+export {
+  applyDeckFilters,
+  featurePhrase,
+  findInsight,
+  NO_FILTERS,
+  templateSentence,
+  type DeckFilters,
+  type Insight,
+} from "./insight";
