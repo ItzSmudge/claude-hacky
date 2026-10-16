@@ -154,7 +154,7 @@ export function SavedPaperList({
               aria-labelledby={`${uid}-claim-${index}`}
               className="flex flex-col gap-4"
             >
-              <header className="flex flex-col gap-1 border-b border-primary/30 pb-2">
+              <header className="flex flex-col gap-1 border-b border-primary/30 pb-2 hc:border-primary">
                 <p className="text-sm font-medium text-muted-foreground">{claim.label}</p>
                 <h2
                   id={`${uid}-claim-${index}`}
@@ -207,7 +207,7 @@ function Section({
   const id = `group-${title.toLowerCase().replace(/\W+/g, "-")}`;
   return (
     <section aria-labelledby={id} className="flex flex-col gap-3">
-      <header className="flex items-baseline justify-between gap-3 border-b border-primary/30 pb-2">
+      <header className="flex items-baseline justify-between gap-3 border-b border-primary/30 pb-2 hc:border-primary">
         <h2 id={id} className="font-display text-xl font-semibold text-primary">
           {title}{" "}
           <span className="font-sans text-base font-normal text-muted-foreground">({count})</span>
