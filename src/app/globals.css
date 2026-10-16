@@ -333,14 +333,19 @@ html.text-large {
   &:focus-within {
     box-shadow: var(--shadow-paper-lg);
   }
-  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  @media (hover: hover) {
     &:hover {
-      translate: 0 -3px;
       box-shadow: var(--shadow-paper-lg);
       border-color: color-mix(in oklch, var(--primary) 35%, var(--border));
     }
     &:is(.hc *):hover {
       border-color: var(--border);
+    }
+    /* Only the lift is motion; reduced motion keeps the shadow and border cue. */
+    @media (prefers-reduced-motion: no-preference) {
+      &:hover {
+        translate: 0 -3px;
+      }
     }
   }
 }
