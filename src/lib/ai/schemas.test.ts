@@ -237,3 +237,24 @@ describe("word-limit slack (paper analysis only)", () => {
     expect(words(3, { slack: 1.5 }).safeParse(w(6)).success).toBe(false);
   });
 });
+
+describe("paper card limits (review should-fix 6 and 7)", () => {
+  it("builds the reply schema and the rewrite schema from one set of limits", async () => {
+    const { PAPER_CARD_LIMITS, shortenedFieldOutputSchema } = await import("./schemas");
+    expect(PAPER_CARD_LIMITS).toEqual({
+      overview: 35,
+      whyItMatters: 20,
+      relevanceReason: 8,
+      methodology: 15,
+      limitations: 15,
+      note: 12,
+    });
+    const w = (n: number) => Array.from({ length: n }, () => "teen").join(" ");
+    expect(shortenedFieldOutputSchema(8).safeParse({ text: w(8) }).success).toBe(true);
+    expect(shortenedFieldOutputSchema(8).safeParse({ text: w(9) }).success).toBe(false); // strict, no slack
+    expect(shortenedFieldOutputSchema(8).safeParse({ text: "See https://x.org" }).success).toBe(
+      false,
+    );
+    expect(shortenedFieldOutputSchema(8).parse({ text: "not stated" }).text).toBe("not stated");
+  });
+});

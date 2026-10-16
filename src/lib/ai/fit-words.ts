@@ -5,9 +5,12 @@
  */
 import { NOT_STATED, countWords } from "./schemas";
 
-// A "." after these is not a sentence end.
-const ABBREVIATION = /(?:^|\s|\()(?:e\.g|i\.e|etc|vs|cf|al|approx|fig|no|vol)$/i;
+// A "." after these is not a sentence end ("ca. 300", "Dr. Stevens", "Sept. 2019").
+const ABBREVIATION =
+  /(?:^|\s|\()(?:e\.g|i\.e|etc|vs|cf|al|approx|fig|figs|no|nos|vol|ca|c|dr|prof|mr|mrs|ms|st|jr|eq|eqs|pp|resp|est|sec|ch|incl|dept|univ|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)$/i;
 const INITIAL = /(?:^|[\s.(])\p{L}$/u;
+// A token with an inner dot is an abbreviation too: "M.Sc", "Ph.D".
+const DOTTED = /(?:^|\s|\()\p{L}+\.\p{L}+$/u;
 
 /** Sentences, keeping their end marks. Text with no end mark is one unit. */
 export function splitSentences(text: string): string[] {
@@ -16,7 +19,13 @@ export function splitSentences(text: string): string[] {
   for (const match of text.matchAll(/[.!?]+(?=\s+["'“(]?[\p{Lu}\d])/gu)) {
     const end = match.index + match[0].length;
     const before = text.slice(start, match.index);
-    if (match[0] === "." && (ABBREVIATION.test(before) || INITIAL.test(before))) continue;
+    // "..." trails off; it doesn't end a sentence.
+    if (/^\.{2,}$/.test(match[0])) continue;
+    if (
+      match[0] === "." &&
+      (ABBREVIATION.test(before) || INITIAL.test(before) || DOTTED.test(before))
+    )
+      continue;
     out.push(text.slice(start, end).trim());
     start = end;
   }
@@ -49,16 +58,41 @@ const numbers = (text: string) =>
  * True if `rewrite` brings in a number, year or capitalised name that `original` doesn't have:
  * a shortened field may only reuse what the model already wrote (and the paper already said).
  */
+const NUMBER_WORDS = new Set(
+  (
+    "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen " +
+    "sixteen seventeen eighteen nineteen twenty thirty forty fifty sixty seventy eighty ninety " +
+    "hundred thousand million billion half twice thrice dozen double triple"
+  ).split(" "),
+);
+// Ordinary openers a rewrite may start a sentence with even if the original didn't use them.
+const OPENERS = new Set(
+  (
+    "the a an this these that those it its in among most some each both while when after " +
+    "before over under for of with from by as at on to and but or however overall yet such"
+  ).split(" "),
+);
+
 export function introducesNewFacts(original: string, rewrite: string): boolean {
   const known = numbers(original);
   for (const n of numbers(rewrite)) if (!known.has(n)) return true;
+  const letters = (text: string) => text.toLowerCase().match(/\p{L}+/gu) ?? [];
+  const originalLetters = new Set(letters(original));
+  // "three-wave" → "five-wave", "twice" → "three times": number words must come from the original.
+  for (const w of letters(rewrite)) if (NUMBER_WORDS.has(w) && !originalLetters.has(w)) return true;
   const originalWords = new Set(original.toLowerCase().match(/\p{L}[\p{L}'-]*/gu) ?? []);
   const tokens = rewrite.split(/\s+/).filter(Boolean);
   for (let i = 0; i < tokens.length; i++) {
     const sentenceStart = i === 0 || /[.!?]["')]?$/.test(tokens[i - 1]!);
     for (const word of tokens[i]!.match(/\p{L}[\p{L}'-]*/gu) ?? []) {
-      if (sentenceStart && tokens[i]!.startsWith(word)) continue;
-      if (/^\p{Lu}/u.test(word) && !originalWords.has(word.toLowerCase())) return true;
+      const lower = word.toLowerCase();
+      // A capital at a sentence start is only grammar if the word is ordinary or already given;
+      // otherwise it may be a new name ("Orben found…").
+      if (sentenceStart && tokens[i]!.startsWith(word)) {
+        if (!OPENERS.has(lower) && !originalWords.has(lower)) return true;
+        continue;
+      }
+      if (/^\p{Lu}/u.test(word) && !originalWords.has(lower)) return true;
     }
   }
   return false;
@@ -75,6 +109,7 @@ export function endsMidClause(text: string): boolean {
   const t = text.trim();
   if (!t || t === NOT_STATED) return false;
   if (/[,;:—–-]$|…$|\.\.\.$/.test(t)) return true;
-  const last = t.toLowerCase().match(/(\p{L}+)$/u)?.[1];
+  // "about the." still dangles: ignore a closing mark when reading the last word.
+  const last = t.toLowerCase().match(/(\p{L}+)[.!?]*$/u)?.[1];
   return last !== undefined && DANGLING.has(last);
 }

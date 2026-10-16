@@ -6,7 +6,7 @@
  */
 import type { Paper, PaperAnalysis, ProjectContext } from "@/types/domain";
 import { endsMidClause } from "./fit-words";
-import { NOT_STATED, countWords } from "./schemas";
+import { NOT_STATED, PAPER_CARD_LIMITS, countWords } from "./schemas";
 
 export interface EvalIssues {
   failures: string[];
@@ -22,15 +22,8 @@ export interface EvalRow {
   error?: string;
 }
 
-// Mirrors paperAnalysisOutputSchema's word limits.
-const LIMITS = {
-  overview: 35,
-  whyItMatters: 20,
-  relevanceReason: 8,
-  methodology: 15,
-  limitations: 15,
-} as const;
-const NOTE_LIMIT = 12;
+// The same limits paperAnalysisOutputSchema and the fitter use (one source in schemas.ts).
+const { note: NOTE_LIMIT, ...LIMITS } = PAPER_CARD_LIMITS;
 const TITLE_RUN = 6;
 
 const LINK = /\bhttps?:\/\/|\bwww\.\S/i;

@@ -16,6 +16,15 @@ describe("splitSentences", () => {
     ["i.e.", "The older group, i.e. those over 15, differed. Done."],
     ["initials", "Data from the U.K. cohort were used. Done."],
     ["et al.", "Builds on Smith et al. findings from before. Done."],
+    // review should-fix 2: these split before, so a clamp could end "A sample of ca."
+    ["ca.", "A sample of ca. 300 teens was used. Done."],
+    ["Dr.", "Led by Dr. Stevens at the clinic. Done."],
+    ["M.Sc.", "Data from M.Sc. Students in two schools. Done."],
+    ["Eq.", "As in Eq. 3 of the model. Done."],
+    ["Sept.", "Collected in Sept. 2019 across sites. Done."],
+    // review should-fix 3: an ellipsis is not a sentence end
+    ["...", "Findings were mixed... Further work is needed. Done."],
+    ["…", "Findings were mixed… Further work is needed. Done."],
   ])("does not split inside %s", (_label, text) => {
     expect(splitSentences(text)).toHaveLength(2);
   });
@@ -73,6 +82,21 @@ describe("introducesNewFacts", () => {
     expect(introducesNewFacts(original, rewrite)).toBe(true);
   });
 
+  // review should-fix 4 and 5
+  it.each([
+    ["a new name at the start of a sentence", "Orben found problematic use mattered."],
+    ["a changed number word", "A five-wave study found problematic use mattered."],
+    ["a new number word", "Twice as many adolescents found problematic use mattered."],
+  ])("rejects a rewrite with %s", (_label, rewrite) => {
+    expect(introducesNewFacts(original, rewrite)).toBe(true);
+  });
+
+  it("allows a function word or an original word at the start of a sentence", () => {
+    expect(
+      introducesNewFacts(original, "The three-wave study found problematic use mattered."),
+    ).toBe(false);
+  });
+
   it("allows the capital at the start of a sentence", () => {
     expect(
       introducesNewFacts(original, "Problematic use mattered. Adolescents were studied."),
@@ -87,6 +111,7 @@ describe("endsMidClause", () => {
     "It looked at the",
     "Findings were mixed;",
     "Cut short…",
+    "Results were about the.",
   ])("flags %j", (text) => {
     expect(endsMidClause(text)).toBe(true);
   });
