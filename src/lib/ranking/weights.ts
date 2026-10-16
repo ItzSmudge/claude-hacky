@@ -1,4 +1,5 @@
 import type { SwipeDecision } from "@/types/domain";
+import { combineWeights } from "./group";
 
 /**
  * Online feature weights from swipes, and re-ranking of the upcoming deck (RK-02).
@@ -49,8 +50,9 @@ export function scorePaper(features: string[], weights: Weights, idf: Map<string
 }
 
 /**
- * Upcoming items ordered by learnt preference, once there are at least `minSwipes` swipes.
- * Below that, the same array is returned. Stable: ties keep the incoming (relevance) order.
+ * Upcoming items ordered by learnt preference, once there are at least `minSwipes` swipes
+ * (mine plus, in group mode, teammates'). Below that, the same array is returned.
+ * Stable: ties keep the incoming (relevance) order.
  */
 export function rankItems<T>(
   items: T[],
@@ -59,13 +61,28 @@ export function rankItems<T>(
   {
     minSwipes = DEFAULT_MIN_SWIPES,
     decay = DEFAULT_DECAY,
-  }: { minSwipes?: number; decay?: number } = {},
+    teamHistories = [],
+    teamWeight,
+  }: {
+    minSwipes?: number;
+    decay?: number;
+    /** RK-04: one history per teammate; they count at `teamWeight` (see combineWeights). */
+    teamHistories?: SwipeSample[][];
+    teamWeight?: number;
+  } = {},
 ): T[] {
-  if (history.length < minSwipes || items.length < 2) return items;
-  const weights = learnWeights(history, { decay });
+  const teamSwipes = teamHistories.flat();
+  if (history.length + teamSwipes.length < minSwipes || items.length < 2) return items;
+  const weights = teamSwipes.length
+    ? combineWeights(history, teamHistories, { decay, teamWeight })
+    : learnWeights(history, { decay });
   const itemFeatures = items.map(featuresOf);
-  // Distinctiveness over every paper in play: the decided ones and the upcoming ones.
-  const idf = featureIdf([...itemFeatures, ...history.map((s) => s.features)]);
+  // Distinctiveness over every paper in play: the decided ones (anyone's) and the upcoming ones.
+  const idf = featureIdf([
+    ...itemFeatures,
+    ...history.map((s) => s.features),
+    ...teamSwipes.map((s) => s.features),
+  ]);
   return items
     .map((item, index) => ({ item, index, score: scorePaper(itemFeatures[index], weights, idf) }))
     .sort((a, b) => b.score - a.score || a.index - b.index)

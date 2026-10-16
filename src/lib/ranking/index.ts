@@ -1,4 +1,5 @@
 export { extractFeatures, type FeatureKind, type PaperFeature } from "./features";
+export { combineWeights, keepHead } from "./group";
 export {
   featureIdf,
   learnWeights,
