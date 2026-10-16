@@ -8,7 +8,12 @@ import { paperAnalysisSchema } from "@/lib/api-schemas";
 import type { Paper, PaperAnalysis, ProjectContext } from "@/types/domain";
 import { askJson } from "./client";
 import type { JsonUsage } from "./json";
-import { NOT_STATED, paperAnalysisOutputSchema, type PaperAnalysisOutput } from "./schemas";
+import {
+  NOT_STATED,
+  normaliseNotStated,
+  paperAnalysisOutputSchema,
+  type PaperAnalysisOutput,
+} from "./schemas";
 
 /**
  * AI-03: one paper + the project's context → the card text for the swipe deck (FAST model).
@@ -99,9 +104,7 @@ export function buildPaperAnalysisPrompt(
   };
 }
 
-// "Not stated.", "N/A", "None stated" → the exact marker, so the UI can detect missing info.
-const MISSING = /^(not stated|none stated|n\/a|unknown)\.?$/i;
-const marker = (text: string) => (MISSING.test(text.trim()) ? NOT_STATED : text);
+const marker = normaliseNotStated;
 
 /**
  * Pure. Attaches ids, keeps one stance per known claim in the brief's order (unknown ids are
