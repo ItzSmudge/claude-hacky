@@ -234,8 +234,9 @@ export async function searchSemanticScholar(
     }
     if (!res.ok) {
       await res.body?.cancel().catch(() => {});
-      // Unconfirmed whether /paper/search accepts `tldr` (SE-02 spec): rather than lose every
-      // search to a 400, ask once more without it. Doesn't count as a retry or wait.
+      // /paper/search accepted `tldr` when checked (2026-10-16), but it is the field most likely
+      // to be restricted: rather than lose every search to a 400, ask once more without it.
+      // Doesn't count as a retry or wait.
       if (res.status === 400 && !droppedTldr) {
         droppedTldr = true;
         url.searchParams.set("fields", FIELDS.replace(",tldr", ""));

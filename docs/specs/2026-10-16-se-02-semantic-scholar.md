@@ -37,7 +37,7 @@ Optional fields are left unset (not `undefined`/`""`), as in SE-01.
 `SemanticScholarError { status, retryable }`, mirroring `OpenAlexError`:
 
 - **429 / 5xx / network / body-read failures:** 2 retries (500 ms, 1.5 s), honouring `Retry-After` capped at 5 s. After that, a retryable error, which SE-03 treats as "use OpenAlex only".
-- **Other 4xx or malformed body:** not retried (400 / 502). One exception: the first 400 is retried once, straight away, without `tldr` in `fields`, because S2 may not allow that field on search (unconfirmed when this was written).
+- **Other 4xx or malformed body:** not retried (400 / 502). One exception: the first 400 is retried once, straight away, without `tldr` in `fields`, as a safety net in case S2 restricts that field (search accepted it on 2026-10-16, with a key).
 - **Empty query:** rejected without a request.
 - 8 s timeout per attempt. The caller's `AbortSignal` cancels both waits and requests.
 - `perPage` is clamped to 1–100. S2 serves only the first 1,000 results: the last page's `limit` is shrunk so offset + limit ≤ 1,000, pages past that return empty without a request, and `nextPage` is `null` once `page·perPage ≥ min(total, 1000)`.
@@ -54,5 +54,5 @@ The tests check mapping, `paperSchema` validity, the URL and header, paging, and
 ## Out of scope
 
 - Merging and DOI dedupe with OpenAlex (SE-03), and wiring into `/api/search`.
-- Batch TLDR lookup (`/paper/batch`). If search rejects `tldr`, the 400 fallback above returns papers without a TLDR; re-run the live test once a key exists and drop `tldr` from the fields if so.
+- Batch TLDR lookup (`/paper/batch`). Confirmed 2026-10-16: search returns `tldr`, but it is `null` for some papers (about 2 in 5 in a sample of 5); those papers simply have no TLDR.
 - Getting an API key. That needs a request to S2; it is recommended, because anonymous use is mostly 429s.
