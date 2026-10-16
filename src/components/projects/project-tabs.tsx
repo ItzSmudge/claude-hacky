@@ -1,6 +1,7 @@
 "use client";
 
 import { BookMarked, Layers, Users, type LucideIcon } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useSelectedLayoutSegment } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -111,6 +112,11 @@ export function ProjectTabs({
     recount.current();
   }, [active]);
 
+  const reduceMotion = useReducedMotion() ?? false;
+  const glide = reduceMotion
+    ? { duration: 0 }
+    : { type: "tween" as const, duration: 0.25, ease: "easeOut" as const };
+
   return (
     <nav aria-label="Project">
       <ul className="grid grid-cols-3 border-b border-border hc:border-b-2 hc:border-primary">
@@ -122,14 +128,23 @@ export function ProjectTabs({
                 href={`/app/p/${projectId}${path}`}
                 aria-current={current ? "page" : undefined}
                 className={cn(
-                  "relative -mb-px flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-t-xl border border-transparent px-2 text-sm transition-colors duration-150 ease-out focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden motion-reduce:transition-none sm:gap-2",
+                  "group/tab relative -mb-px flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-t-xl border border-transparent px-2 text-sm transition-colors duration-150 ease-out focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden motion-reduce:transition-none sm:gap-2",
                   current
-                    ? "border-border border-b-card bg-card font-semibold text-primary before:absolute before:inset-x-4 before:top-0 before:h-[3px] before:rounded-b-full before:bg-primary hc:-mb-0.5 hc:border-2 hc:border-primary hc:border-b-card"
+                    ? "border-border border-b-card bg-card font-semibold text-primary hc:-mb-0.5 hc:border-2 hc:border-primary hc:border-b-card"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
+                {current && (
+                  // The ink bar glides to the tab you pick (one layoutId shared across tabs).
+                  <motion.span
+                    aria-hidden
+                    layoutId="project-tab-ink"
+                    transition={glide}
+                    className="absolute inset-x-4 top-0 h-[3px] rounded-b-full bg-primary"
+                  />
+                )}
                 <Icon
-                  className="size-[18px] shrink-0 max-[359px]:hidden"
+                  className="size-[18px] shrink-0 transition-transform duration-200 ease-out group-hover/tab:-translate-y-0.5 max-[359px]:hidden"
                   strokeWidth={1.75}
                   aria-hidden
                 />
@@ -138,9 +153,21 @@ export function ProjectTabs({
                   <>
                     <span
                       aria-hidden
-                      className="min-w-5 rounded-full bg-secondary px-1.5 text-center text-xs font-semibold text-secondary-foreground tabular-nums max-[300px]:hidden hc:border hc:border-primary"
+                      className="inline-grid min-w-5 overflow-hidden rounded-full bg-secondary px-1.5 text-center text-xs font-semibold text-secondary-foreground tabular-nums max-[300px]:hidden hc:border hc:border-primary"
                     >
-                      {saved}
+                      {/* The count rolls up when it changes. */}
+                      <AnimatePresence initial={false} mode="popLayout">
+                        <motion.span
+                          key={saved}
+                          initial={reduceMotion ? false : { y: "100%", opacity: 0 }}
+                          animate={{ y: 0, opacity: 1 }}
+                          exit={reduceMotion ? { opacity: 0 } : { y: "-100%", opacity: 0 }}
+                          transition={glide}
+                          className="[grid-area:1/1]"
+                        >
+                          {saved}
+                        </motion.span>
+                      </AnimatePresence>
                     </span>
                     <span className="sr-only">, {saved} saved</span>
                   </>

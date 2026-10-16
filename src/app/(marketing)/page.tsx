@@ -207,7 +207,7 @@ function HowItWorks() {
           {STEPS.map(({ icon: Icon, title, body }, i) => (
             <li
               key={title}
-              className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-paper md:p-6 hc:border-2"
+              className="flex card-lift flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-paper md:p-6 hc:border-2"
             >
               <div className="flex items-center gap-3">
                 <span
@@ -245,7 +245,7 @@ function Features() {
           {FEATURES.map(({ icon: Icon, title, body, soon }) => (
             <li
               key={title}
-              className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-paper hc:border-2"
+              className="flex card-lift flex-col gap-3 rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-paper hc:border-2"
             >
               <Icon className="size-6 text-primary" strokeWidth={1.75} aria-hidden />
               <h3 className="flex flex-wrap items-center gap-2 font-display text-lg font-semibold text-primary">

@@ -133,8 +133,8 @@ export function GroupReadingList({
           aria-labelledby={`group-${paper.paperId}`}
           aria-busy={busy || undefined}
           className={cn(
-            "flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-paper md:p-6 hc:border-2",
-            split && "border-l-4 border-l-warning",
+            "flex card-lift flex-col gap-3 rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-paper md:p-6 hc:border-2",
+            split && "border-l-4 border-l-warning!",
           )}
         >
           <p className="text-sm break-words text-muted-foreground">{view.meta}</p>
