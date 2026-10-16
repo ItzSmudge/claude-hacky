@@ -1,0 +1,250 @@
+{
+  "_note": "`real` is the unedited Semantic Scholar /graph/v1/paper response for DOI 10.1016/j.chb.2020.106645 (same paper as openalex-W3110709293 in src/fixtures), recorded 2026-10-16. 9000… records are synthetic edge cases, not real papers.",
+  "papers": {
+    "real": {
+      "paperId": "4dbdefe3d0f5ccae521c12b80a7d666932dc504b",
+      "externalIds": {
+        "MAG": "3110709293",
+        "DBLP": "journals/chb/BoerSFLE21",
+        "DOI": "10.1016/j.chb.2020.106645",
+        "CorpusId": 230638998
+      },
+      "publicationVenue": {
+        "id": "435ffef1-21df-491d-b69a-605eee1b7f7f",
+        "name": "Computers in Human Behavior",
+        "type": "journal",
+        "alternate_names": ["Comput Hum Behav"],
+        "issn": "0747-5632",
+        "url": "https://www.journals.elsevier.com/computers-in-human-behavior",
+        "alternate_urls": [
+          "https://www.sciencedirect.com/science/article/pii/S0747563216307695",
+          "http://www.sciencedirect.com/science/journal/07475632"
+        ]
+      },
+      "url": "https://www.semanticscholar.org/paper/4dbdefe3d0f5ccae521c12b80a7d666932dc504b",
+      "title": "Social media use intensity, social media use problems, and mental health among adolescents: Investigating directionality and mediating processes",
+      "venue": "Computers in Human Behavior",
+      "year": 2020,
+      "citationCount": 293,
+      "openAccessPdf": {
+        "url": "https://www.sciencedirect.com/science/article/pii/S0747563220303927/pdf",
+        "status": "HYBRID",
+        "license": "CCBY",
+        "disclaimer": "Notice: Paper or abstract available at https://api.unpaywall.org/v2/10.1016/j.chb.2020.106645?email=<INSERT_YOUR_EMAIL> or https://doi.org/10.1016/j.chb.2020.106645, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+      },
+      "fieldsOfStudy": ["Computer Science", "Psychology"],
+      "tldr": {
+        "model": "tldr@v2.0.0",
+        "text": "Findings of the study suggest that harmful effects of SMU intensity may be limited and highlight the potential risk ofSMU problems to adolescent mental health."
+      },
+      "publicationTypes": ["JournalArticle"],
+      "authors": [
+        {
+          "authorId": "152493928",
+          "name": "M. Boer"
+        },
+        {
+          "authorId": "39379760",
+          "name": "G. Stevens"
+        },
+        {
+          "authorId": "1953465",
+          "name": "C. Finkenauer"
+        },
+        {
+          "authorId": "2481984082",
+          "name": "M. D. de Looze"
+        },
+        {
+          "authorId": "80447744",
+          "name": "R. van den Eijnden"
+        }
+      ],
+      "abstract": "Abstract Social media have become increasingly integrated into the daily lives of adolescents. There are concerns about the potential detrimental effects of adolescents’ social media use (SMU) on their mental health. Using a three-wave longitudinal study among 2,109 secondary school adolescents (Mage = 13.1, SDage = 0.8), the present study examined whether high SMU intensity and addiction-like SMU problems were bidirectionally associated with low mental health, and whether these associations were mediated by increased levels of upward social comparisons, cybervictimization, decreased subjective school achievements, and less face-to-face contact with friends. In doing so, mental health was measured by depressive symptoms and life satisfaction. Findings from random intercept cross-lagged panel models showed a direct unidirectional association between SMU problems and mental health: SMU problems were associated with decreased mental health one year later, but not vice versa. SMU problems also predicted increased levels of upward social comparisons and cybervictimization one year later. Yet, these processes did not mediate the observed effect of SMU problems on decreased mental health. Over time, SMU intensity and mental health were not associated in any direction, neither directly, nor indirectly through any of the mediators. Findings of our study suggest that harmful effects of SMU intensity may be limited and highlight the potential risk of SMU problems to adolescent mental health."
+    },
+    "noTitle": {
+      "paperId": "9000000000000000000000000000000000000002",
+      "externalIds": {
+        "DOI": "10.9999/synthetic.1"
+      },
+      "title": "   ",
+      "abstract": "Synthetic abstract.",
+      "year": 2021,
+      "venue": "Synthetic Journal",
+      "publicationVenue": {
+        "name": "Synthetic Journal",
+        "type": "journal"
+      },
+      "publicationTypes": ["JournalArticle"],
+      "authors": [
+        {
+          "authorId": "1",
+          "name": "Test Author"
+        }
+      ],
+      "citationCount": 3,
+      "openAccessPdf": {
+        "url": "https://example.org/synthetic.pdf"
+      },
+      "tldr": {
+        "model": "tldr@v2.0.0",
+        "text": "Synthetic tldr."
+      },
+      "url": "https://www.semanticscholar.org/paper/9000000000000000000000000000000000000001",
+      "fieldsOfStudy": ["Psychology"]
+    },
+    "noId": {
+      "paperId": null,
+      "externalIds": {
+        "DOI": "10.9999/synthetic.1"
+      },
+      "title": "Synthetic Edge Case Paper",
+      "abstract": "Synthetic abstract.",
+      "year": 2021,
+      "venue": "Synthetic Journal",
+      "publicationVenue": {
+        "name": "Synthetic Journal",
+        "type": "journal"
+      },
+      "publicationTypes": ["JournalArticle"],
+      "authors": [
+        {
+          "authorId": "1",
+          "name": "Test Author"
+        }
+      ],
+      "citationCount": 3,
+      "openAccessPdf": {
+        "url": "https://example.org/synthetic.pdf"
+      },
+      "tldr": {
+        "model": "tldr@v2.0.0",
+        "text": "Synthetic tldr."
+      },
+      "url": "https://www.semanticscholar.org/paper/9000000000000000000000000000000000000001",
+      "fieldsOfStudy": ["Psychology"]
+    },
+    "sparse": {
+      "paperId": "9000000000000000000000000000000000000004",
+      "externalIds": {
+        "CorpusId": 4
+      },
+      "title": "Sparse  Synthetic\nPaper",
+      "abstract": null,
+      "year": 2019,
+      "venue": "",
+      "publicationVenue": null,
+      "publicationTypes": null,
+      "authors": [
+        {
+          "authorId": "2",
+          "name": "Test Author"
+        }
+      ],
+      "citationCount": 0,
+      "openAccessPdf": {
+        "url": "",
+        "status": null
+      },
+      "tldr": null,
+      "url": "https://www.semanticscholar.org/paper/9000000000000000000000000000000000000004",
+      "fieldsOfStudy": null
+    },
+    "messy": {
+      "paperId": "9000000000000000000000000000000000000005",
+      "externalIds": {
+        "DOI": "https://doi.org/10.1/ABC"
+      },
+      "title": "Synthetic Edge Case Paper",
+      "abstract": "Synthetic abstract.",
+      "year": 2020.5,
+      "venue": "Synthetic Journal",
+      "publicationVenue": {
+        "name": "Synthetic Journal",
+        "type": "journal"
+      },
+      "publicationTypes": ["JournalArticle"],
+      "authors": [
+        {
+          "authorId": "3",
+          "name": "Kept Author"
+        },
+        null,
+        {
+          "authorId": null,
+          "name": "  "
+        }
+      ],
+      "citationCount": 3,
+      "openAccessPdf": {
+        "url": "https://example.org/synthetic.pdf"
+      },
+      "tldr": {
+        "model": "tldr@v2.0.0",
+        "text": null
+      },
+      "url": "javascript:x",
+      "fieldsOfStudy": ["A", "B", "C", "D", "E"]
+    },
+    "noDoiBadUrl": {
+      "paperId": "9000000000000000000000000000000000000006",
+      "externalIds": {},
+      "title": "Synthetic Edge Case Paper",
+      "abstract": "Synthetic abstract.",
+      "year": 2021,
+      "venue": "Synthetic Journal",
+      "publicationVenue": {
+        "name": "Synthetic Journal",
+        "type": "journal"
+      },
+      "publicationTypes": ["JournalArticle"],
+      "authors": [
+        {
+          "authorId": "1",
+          "name": "Test Author"
+        }
+      ],
+      "citationCount": 3,
+      "openAccessPdf": {
+        "url": "https://example.org/synthetic.pdf"
+      },
+      "tldr": {
+        "model": "tldr@v2.0.0",
+        "text": "Synthetic tldr."
+      },
+      "url": "javascript:x",
+      "fieldsOfStudy": ["Psychology"]
+    },
+    "preprint": {
+      "paperId": "9000000000000000000000000000000000000007",
+      "externalIds": {
+        "ArXiv": "2101.00007"
+      },
+      "title": "Synthetic Edge Case Paper",
+      "abstract": "Synthetic abstract.",
+      "year": 2021,
+      "venue": "arXiv.org",
+      "publicationVenue": {
+        "name": "arXiv.org",
+        "type": "repository"
+      },
+      "publicationTypes": ["JournalArticle"],
+      "authors": [
+        {
+          "authorId": "1",
+          "name": "Test Author"
+        }
+      ],
+      "citationCount": 3,
+      "openAccessPdf": {
+        "url": "https://example.org/synthetic.pdf"
+      },
+      "tldr": {
+        "model": "tldr@v2.0.0",
+        "text": "Synthetic tldr."
+      },
+      "url": "https://www.semanticscholar.org/paper/9000000000000000000000000000000000000001",
+      "fieldsOfStudy": ["Psychology"]
+    }
+  }
+}
