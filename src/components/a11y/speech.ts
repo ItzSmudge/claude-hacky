@@ -43,6 +43,23 @@ export function toUtterances(parts: readonly string[], max = MAX_CHUNK): string[
   return out;
 }
 
+/** Longest text sent to /api/tts in one go (keeps the GET URL well under platform limits). */
+export const TTS_MAX_TEXT = 2_000;
+
+/**
+ * The whole script as one piece for a natural voice (it phrases across sentences), cut at the last
+ * sentence that fits so it never stops mid-word.
+ */
+export function toTtsText(parts: readonly string[], max = TTS_MAX_TEXT): string {
+  let out = "";
+  for (const piece of toUtterances(parts)) {
+    const next = out ? `${out} ${piece}` : piece;
+    if (next.length > max) break;
+    out = next;
+  }
+  return out;
+}
+
 const sentence = (text: string) => (/[.!?]$/.test(text) ? text : `${text}.`);
 
 /** What the card's Listen button reads: title, why it matters, overview. */
