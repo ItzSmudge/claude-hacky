@@ -3,9 +3,36 @@
  * can't cite safely (no id or title) are dropped rather than patched up. S2's one-line TLDR is
  * the reason to call it at all: SE-03 merges these with OpenAlex results.
  */
+import { z } from "zod";
 import { normaliseDoi } from "@/lib/export/doi";
 import type { Paper } from "@/types/domain";
+import type { OpenAlexSearchResult } from "./openalex";
 
+type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
+
+const API = "https://api.semanticscholar.org/graph/v1/paper/search";
+const FIELDS = [
+  "paperId",
+  "externalIds",
+  "title",
+  "abstract",
+  "year",
+  "venue",
+  "publicationVenue",
+  "publicationTypes",
+  "authors",
+  "citationCount",
+  "openAccessPdf",
+  "tldr",
+  "url",
+  "fieldsOfStudy",
+].join(",");
+const MAX_PER_PAGE = 100;
+// Relevance search only serves offset + limit ≤ 1,000; past that S2 answers 400.
+const MAX_RESULTS = 1_000;
+const TIMEOUT_MS = 8_000;
+const BACKOFF_MS = [500, 1_500];
+const MAX_RETRY_AFTER_MS = 5_000;
 const MAX_TOPICS = 3;
 const PEER_REVIEWED_TYPES = new Set(["JournalArticle", "Conference", "Review"]);
 // Refereed venues; S2 calls arXiv and other preprint servers "repository" (or leaves it unset).
@@ -87,4 +114,147 @@ export function s2PaperToPaper(p: S2Paper): Paper | null {
     paper.citationCount = p.citationCount!;
   }
   return paper;
+}
+
+export class SemanticScholarError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly retryable: boolean,
+  ) {
+    super(message);
+    this.name = "SemanticScholarError";
+  }
+}
+
+export interface SemanticScholarSearchParams {
+  q: string;
+  yearFrom?: number;
+  yearTo?: number;
+  page?: number;
+  perPage?: number;
+}
+
+export interface SemanticScholarDeps {
+  fetch?: Fetch;
+  /** Sent as `x-api-key`. Without one S2's shared anonymous pool often answers 429. */
+  apiKey?: string;
+  /** Worst case without one is ~26 s (3 × 8 s timeout + backoff); callers should pass a deadline. */
+  signal?: AbortSignal;
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+}
+
+const responseSchema = z.object({
+  total: z.number().int().nonnegative(),
+  // S2 leaves `data` out entirely when nothing matches.
+  data: z.array(z.record(z.string(), z.unknown())).optional(),
+});
+
+function yearRange(from?: number, to?: number) {
+  if (from !== undefined && to !== undefined && from > to) [from, to] = [to, from];
+  if (from === undefined && to === undefined) return undefined;
+  return `${from ?? ""}-${to ?? ""}`;
+}
+
+function retryAfterMs(res: Response): number | undefined {
+  const seconds = Number(res.headers.get("retry-after"));
+  return Number.isFinite(seconds) && seconds > 0
+    ? Math.min(seconds * 1000, MAX_RETRY_AFTER_MS)
+    : undefined;
+}
+
+/** Resolves after `ms`, or as soon as `signal` aborts (the loop then re-checks it). */
+function defaultSleep(ms: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", done);
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    signal?.addEventListener("abort", done, { once: true });
+  });
+}
+
+const aborted = () => new SemanticScholarError("Semantic Scholar request aborted", 0, false);
+
+export async function searchSemanticScholar(
+  params: SemanticScholarSearchParams,
+  { fetch = globalThis.fetch, apiKey, signal, sleep = defaultSleep }: SemanticScholarDeps = {},
+): Promise<OpenAlexSearchResult> {
+  // S2 matches nothing for hyphenated terms ("self-esteem"), so search the words instead.
+  const query = clean(params.q.replace(/-/g, " "));
+  if (!query) throw new SemanticScholarError("Search query is empty", 400, false);
+  const page = Math.max(1, Math.trunc(params.page ?? 1));
+  const perPage = Math.min(MAX_PER_PAGE, Math.max(1, Math.trunc(params.perPage ?? 20)));
+  const url = new URL(API);
+  url.searchParams.set("query", query);
+  url.searchParams.set("offset", String((page - 1) * perPage));
+  url.searchParams.set("limit", String(perPage));
+  url.searchParams.set("fields", FIELDS);
+  const years = yearRange(params.yearFrom, params.yearTo);
+  if (years) url.searchParams.set("year", years);
+  const headers: Record<string, string> = { accept: "application/json" };
+  if (apiKey) headers["x-api-key"] = apiKey;
+
+  let last = new SemanticScholarError("Semantic Scholar request failed", 0, true);
+  let retryAfter: number | undefined;
+  for (let attempt = 0; attempt <= BACKOFF_MS.length; attempt++) {
+    if (signal?.aborted) throw aborted();
+    if (attempt > 0) {
+      await sleep(retryAfter ?? BACKOFF_MS[attempt - 1]!, signal);
+      if (signal?.aborted) throw aborted();
+    }
+
+    let res: Response;
+    try {
+      const timeout = AbortSignal.timeout(TIMEOUT_MS);
+      res = await fetch(url.toString(), {
+        headers,
+        signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      });
+    } catch {
+      if (signal?.aborted) throw aborted();
+      last = new SemanticScholarError("Semantic Scholar unreachable", 0, true);
+      retryAfter = undefined;
+      continue;
+    }
+
+    if (res.status === 429 || res.status >= 500) {
+      last = new SemanticScholarError(`Semantic Scholar responded ${res.status}`, res.status, true);
+      retryAfter = retryAfterMs(res);
+      await res.body?.cancel().catch(() => {});
+      continue;
+    }
+    if (!res.ok) {
+      await res.body?.cancel().catch(() => {});
+      throw new SemanticScholarError(`Semantic Scholar responded ${res.status}`, res.status, false);
+    }
+
+    let text: string;
+    try {
+      text = await res.text();
+    } catch {
+      // The timeout also covers reading the body.
+      if (signal?.aborted) throw aborted();
+      last = new SemanticScholarError("Semantic Scholar body read failed", 0, true);
+      retryAfter = undefined;
+      continue;
+    }
+    let json: unknown = null;
+    try {
+      json = JSON.parse(text);
+    } catch {}
+    const parsed = responseSchema.safeParse(json);
+    if (!parsed.success) {
+      throw new SemanticScholarError("Semantic Scholar returned a malformed body", 502, false);
+    }
+    const { total, data = [] } = parsed.data;
+    return {
+      papers: data.map((raw) => s2PaperToPaper(raw as S2Paper)).filter((p): p is Paper => !!p),
+      total,
+      nextPage: page * perPage < Math.min(total, MAX_RESULTS) ? page + 1 : null,
+    };
+  }
+  throw last;
 }
