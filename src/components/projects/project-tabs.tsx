@@ -110,19 +110,23 @@ export function ProjectTabs({
                 href={`/app/p/${projectId}${path}`}
                 aria-current={current ? "page" : undefined}
                 className={cn(
-                  "-mb-px flex min-h-11 flex-1 items-center justify-center gap-2 rounded-t-xl border border-transparent px-2 text-sm transition-colors duration-150 ease-out focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden motion-reduce:transition-none",
+                  "-mb-px flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-t-xl border border-transparent px-2 text-sm transition-colors duration-150 ease-out focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden motion-reduce:transition-none sm:gap-2",
                   current
                     ? "border-border border-b-card bg-card font-semibold text-primary hc:-mb-0.5 hc:border-2 hc:border-primary hc:border-b-card"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                <Icon className="size-[18px] shrink-0" strokeWidth={1.75} aria-hidden />
+                <Icon
+                  className="size-[18px] shrink-0 max-[359px]:hidden"
+                  strokeWidth={1.75}
+                  aria-hidden
+                />
                 <span>{label}</span>
                 {segment === "library" && saved > 0 && (
                   <>
                     <span
                       aria-hidden
-                      className="min-w-5 rounded-full bg-secondary px-1.5 text-center text-xs font-semibold text-secondary-foreground tabular-nums"
+                      className="min-w-5 rounded-full bg-secondary px-1.5 text-center text-xs font-semibold text-secondary-foreground tabular-nums hc:border hc:border-primary"
                     >
                       {saved}
                     </span>
