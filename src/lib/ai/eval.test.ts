@@ -73,6 +73,17 @@ describe("checkAnalysis", () => {
     expect(check(good({ overview: text }), p).failures).toEqual([]);
   });
 
+  it("allows another title's run made only of words the model was given (live false alarm 3)", () => {
+    // Kelly et al.'s title opens "Social Media Use and Adolescent Mental Health"; every word of
+    // that run is in this paper's abstract or the brief, just not in that order.
+    const p: Paper = {
+      ...paper,
+      abstract: `${paper.abstract} An adolescent sample. Mental scores and media use.`,
+    };
+    const text = "Links social media use and adolescent mental health outcomes.";
+    expect(check(good({ overview: text }), p).failures).toEqual([]);
+  });
+
   it("does not treat single title words as a copied title", () => {
     expect(check(good({ relevanceReason: "Social media and mental health" })).failures).toEqual([]);
   });
@@ -179,6 +190,30 @@ describe("checkAnalysis", () => {
     });
   });
 
+  it("fails on a surname of another fixture paper's authors (review should-fix 2)", () => {
+    // Valkenburg is an author of fixturePapers[1]; the model is never shown any author names.
+    expect(
+      check(good({ whyItMatters: "Valkenburg reviewed this question." })).failures.join(" "),
+    ).toMatch(/author/i);
+  });
+
+  it("reads the surname of a name stored as 'Surname, First' (review should-fix 3)", () => {
+    const p: Paper = { ...paper, authors: [{ name: "Underwood, Lydia" }] };
+    expect(check(good({ whyItMatters: "Underwood argues this." }), p).failures.join(" ")).toMatch(
+      /author/i,
+    );
+  });
+
+  it("flags an invented comma-formatted number that looks like a year (review should-fix 1)", () => {
+    const issues = check(good({ overview: "A survey of 2,010 participants." }));
+    expect([...issues.failures, ...issues.warnings].join(" ")).toMatch(/2010/);
+  });
+
+  it("allows a year that the brief states (review: brief years)", () => {
+    // fixtureProject.context.constraints includes "Published 2015 or later".
+    expect(check(good({ whyItMatters: "Fits the brief's 2015 cut-off." })).failures).toEqual([]);
+  });
+
   it("skips short surnames and surnames that are ordinary words in the abstract", () => {
     const p: Paper = { ...paper, authors: [{ name: "Wei Li" }, { name: "Sam Social" }] };
     expect(check(good({ whyItMatters: "Li reports social effects." }), p).failures).toEqual([]);
@@ -205,7 +240,7 @@ describe("formatEvalReport", () => {
     expect(report).toMatch(/PASS.*openalex-W1/);
     expect(report).toMatch(/FAIL.*openalex-W2/);
     expect(report).toContain(
-      "papers 2, passed 1, failures 1, warnings 0, repaired 0, tokens in 10 / out 5 / cache 3",
+      "papers 2, passed 1, fabrication failures 1, model errors 0, warnings 0, repaired 0, tokens in 10 / out 5 / cache 3",
     );
   });
 
@@ -216,6 +251,6 @@ describe("formatEvalReport", () => {
     const report = formatEvalReport(rows, { input: 0, output: 0, cacheRead: 0 });
     expect(report).toMatch(/^FAIL\s+x\b/m);
     expect(report).toMatch(/^\s+error: refused$/m);
-    expect(report).toContain("passed 0, failures 1");
+    expect(report).toContain("passed 0, fabrication failures 0, model errors 1");
   });
 });

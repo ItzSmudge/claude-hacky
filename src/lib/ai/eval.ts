@@ -71,16 +71,32 @@ const sourceOf = (paper: Paper) =>
     paper.tldr ?? "",
   ].join(" \n ");
 
-/** Author surnames worth checking: last name token, ≥ 3 letters, not an ordinary word in the abstract. */
-function surnames(paper: Paper): string[] {
-  const abstractWords = wordSet(paper.abstract ?? "");
-  return [
-    ...new Set(
-      paper.authors
-        .map((a) => norm(a.name).split(" ").pop() ?? "")
-        .filter((s) => s.length >= 3 && !abstractWords.has(s)),
-    ),
-  ];
+const SUFFIX = new Set(["jr", "sr", "ii", "iii", "iv"]);
+
+/** "Margaretha E. de Looze" → "looze"; "Underwood, Lydia" → "underwood"; suffixes skipped. */
+function surnameOf(name: string): string {
+  const family = name.includes(",") ? name.slice(0, name.indexOf(",")) : name;
+  const tokens = norm(family)
+    .split(" ")
+    .filter((t) => t && !SUFFIX.has(t));
+  return tokens.pop() ?? "";
+}
+
+/**
+ * Surnames worth checking, from every paper we know of: the model is never shown author names, so
+ * any it writes come from memory. ≥ 3 letters, and not an ordinary word in that paper's abstract,
+ * this paper's abstract or the brief (e.g. "Young").
+ */
+function surnames(papers: Paper[], allowed: Set<string>): string[] {
+  const names = new Set<string>();
+  for (const p of papers) {
+    const own = wordSet(p.abstract ?? "");
+    for (const a of p.authors) {
+      const s = surnameOf(a.name);
+      if (s.length >= 3 && !own.has(s) && !allowed.has(s)) names.add(s);
+    }
+  }
+  return [...names];
 }
 
 export function checkAnalysis(
@@ -104,9 +120,20 @@ export function checkAnalysis(
     ),
   ];
   const source = sourceOf(paper);
-  const sourceYears = new Set(source.match(YEAR) ?? []);
-  const sourceNumbers = numbersIn(source);
-  const names = surnames(paper);
+  const brief = [
+    context.topic,
+    context.summary,
+    ...context.claims.map((c) => c.text),
+    ...context.themes,
+    ...context.constraints,
+  ].join(" \n ");
+  // The model sees the brief too, so a year it states ("Published 2015 or later") is sourced.
+  const sourceYears = new Set([...(source.match(YEAR) ?? []), ...(brief.match(YEAR) ?? [])]);
+  const sourceNumbers = numbersIn(`${source} \n ${brief}`);
+  const names = surnames(
+    [paper, ...others],
+    new Set([...wordSet(paper.abstract ?? ""), ...wordSet(brief)]),
+  );
   // A title run the model was also given as ordinary text (this paper's abstract, or the brief)
   // is the topic in plain words, not a copied title: "social media use and adolescent mental".
   const given = ` ${norm(
@@ -120,9 +147,15 @@ export function checkAnalysis(
     ].join(" "),
   )} `;
   const titleRuns = new Map<string, string>();
+  // Another paper's title only counts when the run brings in a word the model wasn't shown
+  // ("millennium cohort study"); a run of given words in a familiar order is generic phrasing.
+  const vocabulary = wordSet(`${source} ${brief}`);
   for (const p of [paper, ...others])
-    for (const run of runs(p.title, TITLE_RUN))
-      if (!given.includes(` ${run} `)) titleRuns.set(run, p.id);
+    for (const run of runs(p.title, TITLE_RUN)) {
+      if (given.includes(` ${run} `)) continue;
+      if (p.id !== paper.id && run.split(" ").every((w) => vocabulary.has(w))) continue;
+      titleRuns.set(run, p.id);
+    }
 
   for (const [name, text] of fields) {
     const padded = ` ${norm(text)} `;
@@ -165,8 +198,10 @@ export function checkAnalysis(
   );
   for (const [name, text, limit] of fields) {
     if (text === NOT_STATED || unclear.has(name)) continue;
+    // Skip only what the year check saw: "2,010 participants" isn't a year, it's a statistic.
+    const textYears = new Set(text.match(YEAR) ?? []);
     for (const n of numbersIn(text)) {
-      if (/^(?:19|20)\d{2}$/.test(n)) continue; // years are checked above
+      if (textYears.has(n)) continue;
       if (!sourceNumbers.has(n)) warnings.push(`${name}: number ${n} is not in the source`);
     }
     const count = countWords(text);
@@ -195,12 +230,15 @@ export function formatEvalReport(
       ...notes.map((n) => `        ${n}`),
     ].join("\n");
   });
-  const failures = rows.reduce((n, r) => n + r.issues.failures.length + (r.error ? 1 : 0), 0);
+  // Kept apart so the invented-scholarship number can be quoted on its own.
+  const fabrication = rows.reduce((n, r) => n + r.issues.failures.length, 0);
+  const errors = rows.filter((r) => r.error !== undefined).length;
   const warnings = rows.reduce((n, r) => n + r.issues.warnings.length, 0);
   const passed = rows.filter((r) => !r.error && r.issues.failures.length === 0).length;
   const repaired = rows.filter((r) => r.repaired).length;
   lines.push(
-    `papers ${rows.length}, passed ${passed}, failures ${failures}, warnings ${warnings}, repaired ${repaired}, ` +
+    `papers ${rows.length}, passed ${passed}, fabrication failures ${fabrication}, model errors ${errors}, ` +
+      `warnings ${warnings}, repaired ${repaired}, ` +
       `tokens in ${usage.input} / out ${usage.output} / cache ${usage.cacheRead}`,
   );
   return lines.join("\n");
