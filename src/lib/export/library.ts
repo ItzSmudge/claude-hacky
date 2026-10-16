@@ -1,13 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { paperAnalysisSchema, paperSchema } from "@/lib/api-schemas";
+import { paperAnalysisSchema, paperSchema, projectContextSchema } from "@/lib/api-schemas";
 import type { Database } from "@/types/database";
-import type { Paper, PaperAnalysis } from "@/types/domain";
+import type { Paper, PaperAnalysis, ProjectContext } from "@/types/domain";
 
 /** A project's saved library: what every export and the library page render from. */
 export interface SavedLibrary {
   title: string;
+  /** The project's claims (from its parsed brief); empty until a brief has been analysed. */
+  claims: ProjectContext["claims"];
   papers: Paper[];
   analyses: Map<string, PaperAnalysis>;
+  /** Paper id → ids of the members who saved it (saves are per member). */
+  savedBy: Map<string, string[]>;
 }
 
 export type LoadResult =
@@ -23,7 +27,7 @@ export async function loadSavedLibrary(
 ): Promise<LoadResult> {
   const { data: project, error: projectError } = await supabase
     .from("projects")
-    .select("title")
+    .select("title, context")
     .eq("id", projectId)
     .maybeSingle();
   if (projectError) return failed("reading project", projectError);
@@ -31,13 +35,15 @@ export async function loadSavedLibrary(
 
   const saves = await supabase
     .from("swipes")
-    .select("paper_id, papers(data)")
+    .select("paper_id, user_id, papers(data)")
     .eq("project_id", projectId)
     .eq("decision", "save");
   if (saves.error) return failed("reading saves", saves.error);
 
   const papers = new Map<string, Paper>();
+  const savedBy = new Map<string, string[]>();
   for (const row of saves.data) {
+    savedBy.set(row.paper_id, [...(savedBy.get(row.paper_id) ?? []), row.user_id]);
     const parsed = paperSchema.safeParse(row.papers?.data);
     if (parsed.success) papers.set(row.paper_id, { ...parsed.data, id: row.paper_id });
     else console.warn("[export] skipping malformed paper", row.paper_id);
@@ -58,7 +64,13 @@ export async function loadSavedLibrary(
   }
   return {
     ok: true,
-    library: { title: project.title, papers: [...papers.values()], analyses: byPaper },
+    library: {
+      title: project.title,
+      claims: projectContextSchema.safeParse(project.context).data?.claims ?? [],
+      papers: [...papers.values()],
+      analyses: byPaper,
+      savedBy,
+    },
   };
 }
 

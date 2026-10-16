@@ -1,5 +1,5 @@
 {
-  "_comment": "Real OpenAlex records (fetched 2026-10-15) + hand-written analyses for UI work. Bibliographic fields come from OpenAlex verbatim. Credibility here is a placeholder formula until SE-04 lands.",
+  "_comment": "Real OpenAlex records (fetched 2026-10-15) + hand-written analyses for UI work. Bibliographic fields come from OpenAlex verbatim. Credibility is computed by src/lib/credibility.ts (scripts/regenerate-credibility.mjs).",
   "project": {
     "id": "00000000-0000-4000-8000-000000000001",
     "title": "Social media & teen mental health",
@@ -91,7 +91,7 @@
         "useAs": "evidence"
       },
       "credibility": {
-        "score": 82,
+        "score": 94,
         "inputs": {
           "citationCount": 330,
           "peerReviewed": true,
@@ -159,7 +159,7 @@
         "useAs": "counterpoint"
       },
       "credibility": {
-        "score": 88,
+        "score": 100,
         "inputs": {
           "citationCount": 746,
           "peerReviewed": true,
@@ -230,7 +230,7 @@
         "useAs": "evidence"
       },
       "credibility": {
-        "score": 82,
+        "score": 95,
         "inputs": {
           "citationCount": 733,
           "peerReviewed": true,
@@ -298,7 +298,7 @@
         "useAs": "evidence"
       },
       "credibility": {
-        "score": 77,
+        "score": 88,
         "inputs": {
           "citationCount": 56,
           "peerReviewed": true,
@@ -366,7 +366,7 @@
         "useAs": "background"
       },
       "credibility": {
-        "score": 84,
+        "score": 97,
         "inputs": {
           "citationCount": 115,
           "peerReviewed": true,
@@ -450,7 +450,7 @@
         "useAs": "evidence"
       },
       "credibility": {
-        "score": 77,
+        "score": 86,
         "inputs": {
           "citationCount": 24,
           "peerReviewed": true,
@@ -521,7 +521,7 @@
         "useAs": "background"
       },
       "credibility": {
-        "score": 87,
+        "score": 100,
         "inputs": {
           "citationCount": 214,
           "peerReviewed": true,
@@ -596,7 +596,7 @@
         "useAs": "evidence"
       },
       "credibility": {
-        "score": 83,
+        "score": 97,
         "inputs": {
           "citationCount": 72,
           "peerReviewed": true,
@@ -662,7 +662,7 @@
         "useAs": "background"
       },
       "credibility": {
-        "score": 72,
+        "score": 80,
         "inputs": {
           "citationCount": 31,
           "peerReviewed": true,
@@ -730,7 +730,7 @@
         "useAs": "counterpoint"
       },
       "credibility": {
-        "score": 83,
+        "score": 97,
         "inputs": {
           "citationCount": 74,
           "peerReviewed": true,
@@ -811,7 +811,7 @@
         "useAs": "method"
       },
       "credibility": {
-        "score": 54,
+        "score": 60,
         "inputs": {
           "citationCount": 0,
           "peerReviewed": true,
@@ -882,7 +882,7 @@
         "useAs": "background"
       },
       "credibility": {
-        "score": 81,
+        "score": 93,
         "inputs": {
           "citationCount": 284,
           "peerReviewed": true,
@@ -943,7 +943,7 @@
         "useAs": "background"
       },
       "credibility": {
-        "score": 56,
+        "score": 60,
         "inputs": {
           "citationCount": 0,
           "peerReviewed": true,
@@ -1005,7 +1005,7 @@
         "useAs": "evidence"
       },
       "credibility": {
-        "score": 62,
+        "score": 64,
         "inputs": {
           "citationCount": 1,
           "peerReviewed": true,
@@ -1079,7 +1079,7 @@
         "useAs": "evidence"
       },
       "credibility": {
-        "score": 78,
+        "score": 94,
         "inputs": {
           "citationCount": 473,
           "peerReviewed": true,
@@ -1159,7 +1159,7 @@
         "useAs": "evidence"
       },
       "credibility": {
-        "score": 67,
+        "score": 71,
         "inputs": {
           "citationCount": 4,
           "peerReviewed": true,
@@ -1228,7 +1228,7 @@
         "useAs": "evidence"
       },
       "credibility": {
-        "score": 62,
+        "score": 67,
         "inputs": {
           "citationCount": 5,
           "peerReviewed": true,
@@ -1297,7 +1297,7 @@
         "useAs": "background"
       },
       "credibility": {
-        "score": 73,
+        "score": 80,
         "inputs": {
           "citationCount": 18,
           "peerReviewed": true,
@@ -1368,7 +1368,7 @@
         "useAs": "evidence"
       },
       "credibility": {
-        "score": 56,
+        "score": 60,
         "inputs": {
           "citationCount": 0,
           "peerReviewed": true,
@@ -1437,7 +1437,7 @@
         "useAs": "background"
       },
       "credibility": {
-        "score": 64,
+        "score": 68,
         "inputs": {
           "citationCount": 5,
           "peerReviewed": true,
