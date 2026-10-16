@@ -145,3 +145,72 @@ describe("searchPapers", () => {
     ).rejects.toThrow("upstream");
   });
 });
+
+describe("searchPapers enrichment", () => {
+  const withTldr = (p: Paper): Paper => ({ ...p, tldr: `TLDR for ${p.id}` });
+
+  it("enriches the kept papers, then scores and caches the enriched ones", async () => {
+    const cache = vi.fn().mockResolvedValue(undefined);
+    const enrich = vi.fn(async (papers: Paper[]) => papers.map(withTldr));
+    const keep = paper("W1");
+    const response = await searchPapers(request({ exclude: ["excluded"] }), {
+      search: async () => result([keep, paper("W2", { title: "Excluded one" })]),
+      enrich,
+      cache,
+      now: NOW,
+    });
+    expect(enrich).toHaveBeenCalledWith([keep]);
+    expect(cache).toHaveBeenCalledWith([withTldr(keep)]);
+    expect(response.papers).toEqual([
+      { ...withTldr(keep), credibility: computeCredibility(withTldr(keep), { now: NOW }) },
+    ]);
+  });
+
+  it("re-applies exclude terms to abstracts S2 filled in", async () => {
+    const a = paper("W1");
+    const b = paper("W2");
+    const response = await searchPapers(request({ exclude: ["survey"] }), {
+      search: async () => result([a, b]),
+      enrich: async () => [{ ...a, abstract: "A survey of teens." }, b],
+      now: NOW,
+    });
+    expect(response.papers.map((p) => p.id)).toEqual(["openalex-W2"]);
+  });
+
+  it("returns the unenriched page when enrichment fails", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const cache = vi.fn().mockResolvedValue(undefined);
+    const a = paper("W1");
+    const response = await searchPapers(request(), {
+      search: async () => result([a]),
+      enrich: () => Promise.reject(new Error("S2 down")),
+      cache,
+      now: NOW,
+    });
+    expect(response.papers.map((p) => p.id)).toEqual(["openalex-W1"]);
+    expect(response.papers[0]).not.toHaveProperty("tldr");
+    expect(cache).toHaveBeenCalledWith([a]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it.each([[[]], [[paper("W1")]]])(
+    "ignores enrichment output that changes the number of papers (%#)",
+    async (output) => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const response = await searchPapers(request(), {
+        search: async () => result([paper("W1"), paper("W2")]),
+        enrich: async () => output,
+        now: NOW,
+      });
+      expect(response.papers.map((p) => p.id)).toEqual(["openalex-W1", "openalex-W2"]);
+      warn.mockRestore();
+    },
+  );
+
+  it("skips enrichment when nothing is left after exclusion", async () => {
+    const enrich = vi.fn(async (papers: Paper[]) => papers);
+    await searchPapers(request(), { search: async () => result([], null), enrich, now: NOW });
+    expect(enrich).not.toHaveBeenCalled();
+  });
+});
