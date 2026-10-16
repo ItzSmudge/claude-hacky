@@ -6,5 +6,5 @@
 **Can start with fixtures?** Partly — `join_project()` RPC and Realtime on `swipes` already exist; demo join code `DEMO42`
 
 - [x] GR-01 Join code + invite link; join adds `project_members`
-- [ ] GR-02 Realtime presence ("3 people swiping") + live swipe feed
+- [x] GR-02 Realtime presence ("3 people swiping") + live swipe feed
 - [x] GR-03 Compiled reading list (save counts) + disagreement flags with quick "discuss/resolve"

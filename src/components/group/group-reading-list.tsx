@@ -2,12 +2,13 @@
 
 import { Check, Copy, MessageCircleQuestion, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { SwipeDecision } from "@/types/domain";
 import { applyVote, summariseGroup, type GroupPaper, type Vote } from "./group-list";
+import { useLiveRefresh } from "./live-presence";
 
 const RING =
   "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card focus-visible:outline-hidden hc:focus-visible:ring-4";
@@ -40,6 +41,12 @@ export function GroupReadingList({
   initialVotes: Vote[];
 }) {
   const router = useRouter();
+  // GR-02: teammates' votes arrive while the page is open.
+  // Held while your own vote is saving, so it can't overwrite the optimistic state mid-flight.
+  const pendingRef = useRef(false);
+  useLiveRefresh(projectId, () => {
+    if (!pendingRef.current) router.refresh();
+  });
   const [votes, setVotes] = useState(initialVotes);
   // A refresh brings teammates' new votes: take them over the local (optimistic) copy.
   const [seen, setSeen] = useState(initialVotes);
@@ -48,6 +55,9 @@ export function GroupReadingList({
     setVotes(initialVotes);
   }
   const [pending, setPending] = useState<string | null>(null);
+  useEffect(() => {
+    pendingRef.current = pending !== null;
+  }, [pending]);
   const [announcement, setAnnouncement] = useState("");
   const headings = useRef(new Map<string, HTMLHeadingElement>());
   const nameOf = new Map(labels);
