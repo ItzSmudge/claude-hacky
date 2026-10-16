@@ -103,3 +103,60 @@ export const briefContextOutputSchema = z.object({
     .describe("Up to 6 requirements on sources or scope stated in the brief; empty if none."),
 });
 export type BriefContextOutput = z.infer<typeof briefContextOutputSchema>;
+
+/**
+ * AI-05: what the SMART model returns about a saved set. Papers appear only as the aliases P1…Pn
+ * given in the prompt; code maps them back to ids and drops anything unknown (see
+ * `finaliseRelations`). Claim groups are not asked for: code builds them from stored stances.
+ */
+const relation = { noLinks: true };
+export const relationsOutputSchema = z.object({
+  methods: z
+    .array(
+      z.object({
+        label: words(6, relation).describe("The shared method or design, at most 6 words."),
+        papers: z.array(z.string()).describe("Aliases (e.g. P3) of every paper using it."),
+      }),
+    )
+    .max(6)
+    .describe("Up to 6 groups of two or more papers that share a method, design or dataset."),
+  pairs: z
+    .array(
+      z.object({
+        a: z.string().describe("Alias of the first paper, e.g. P1."),
+        b: z.string().describe("Alias of the second paper, e.g. P4."),
+        kind: z.enum(["complement", "contrast"]),
+        note: words(25, relation).describe(
+          'At most 25 words on why they belong together, calling them "the first paper" and "the second paper".',
+        ),
+      }),
+    )
+    .max(8)
+    .describe("Up to 8 of the most useful pairs to read together."),
+});
+export type RelationsOutput = z.infer<typeof relationsOutputSchema>;
+
+/** AI-05: POST /api/analyse/relations → `{ relations }`. Client-safe so LB-04 can import it. */
+export const projectRelationsSchema = z.object({
+  projectId: z.string(),
+  /** Saved papers considered. */
+  paperCount: z.int().nonnegative(),
+  /** One entry per brief claim, in the brief's order, from the cards' stored stances. */
+  claims: z.array(
+    z.object({
+      claimId: z.string(),
+      supports: z.array(z.string()),
+      challenges: z.array(z.string()),
+    }),
+  ),
+  methods: z.array(z.object({ label: z.string(), paperIds: z.array(z.string()).min(2) })),
+  pairs: z.array(
+    z.object({
+      a: z.string(),
+      b: z.string(),
+      kind: z.enum(["complement", "contrast"]),
+      note: z.string(),
+    }),
+  ),
+});
+export type ProjectRelations = z.infer<typeof projectRelationsSchema>;
