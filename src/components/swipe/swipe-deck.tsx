@@ -548,7 +548,7 @@ export function SwipeDeck({
         ) : loading ? (
           <CardSkeleton />
         ) : (
-          <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card p-8 text-center shadow-paper">
+          <div className="flex animate-in flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card p-8 text-center shadow-paper duration-300 zoom-in-95 fade-in">
             <p className="font-display text-xl font-semibold text-primary">
               {total === 0 && !onStartOver
                 ? "No papers to swipe yet."

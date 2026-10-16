@@ -1,12 +1,13 @@
 "use client";
 
 import { BookMarked, Layers, Users, type LucideIcon } from "lucide-react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useSelectedLayoutSegment } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import { RollingText } from "@/components/motion/rolling-text";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { countSaved, SWIPES_CHANGED } from "./saved-count";
@@ -153,21 +154,9 @@ export function ProjectTabs({
                   <>
                     <span
                       aria-hidden
-                      className="inline-grid min-w-5 overflow-hidden rounded-full bg-secondary px-1.5 text-center text-xs font-semibold text-secondary-foreground tabular-nums max-[300px]:hidden hc:border hc:border-primary"
+                      className="min-w-5 rounded-full bg-secondary px-1.5 text-center text-xs font-semibold text-secondary-foreground tabular-nums max-[300px]:hidden hc:border hc:border-primary"
                     >
-                      {/* The count rolls up when it changes. */}
-                      <AnimatePresence initial={false} mode="popLayout">
-                        <motion.span
-                          key={saved}
-                          initial={reduceMotion ? false : { y: "100%", opacity: 0 }}
-                          animate={{ y: 0, opacity: 1 }}
-                          exit={reduceMotion ? { opacity: 0 } : { y: "-100%", opacity: 0 }}
-                          transition={glide}
-                          className="[grid-area:1/1]"
-                        >
-                          {saved}
-                        </motion.span>
-                      </AnimatePresence>
+                      <RollingText value={saved} />
                     </span>
                     <span className="sr-only">, {saved} saved</span>
                   </>

@@ -4,6 +4,7 @@ import { Check, Copy, MessageCircleQuestion, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { RollingText } from "@/components/motion/rolling-text";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { SwipeDecision } from "@/types/domain";
@@ -128,7 +129,7 @@ export function GroupReadingList({
     const busy = pending === paper.paperId;
     const total = paper.saves + paper.skips;
     return (
-      <li key={paper.paperId}>
+      <li key={paper.paperId} className="animate-in duration-300 fade-in slide-in-from-bottom-2">
         <article
           aria-labelledby={`group-${paper.paperId}`}
           aria-busy={busy || undefined}
@@ -157,9 +158,16 @@ export function GroupReadingList({
 
           <div className="flex flex-col gap-2">
             <p className="text-sm font-medium">
-              {split
-                ? `${paper.saves} saved · ${paper.skips} skipped`
-                : `Saved by ${paper.saves} of ${memberCount}`}
+              {split ? (
+                <>
+                  <RollingText value={paper.saves} /> saved · <RollingText value={paper.skips} />{" "}
+                  skipped
+                </>
+              ) : (
+                <>
+                  Saved by <RollingText value={paper.saves} /> of {memberCount}
+                </>
+              )}
             </p>
             {!split && (
               <div
@@ -167,7 +175,7 @@ export function GroupReadingList({
                 className="h-2 overflow-hidden rounded-full bg-muted hc:border hc:border-foreground"
               >
                 <div
-                  className="h-full rounded-full bg-primary"
+                  className="h-full fill-in rounded-full bg-primary transition-[width] duration-300 ease-out"
                   style={{
                     width: `${Math.min(100, (paper.saves / Math.max(memberCount, 1)) * 100)}%`,
                   }}
@@ -177,9 +185,10 @@ export function GroupReadingList({
             <ul role="list" aria-label="Votes" className="flex flex-wrap gap-1.5">
               {paper.voters.map(({ userId, decision }) => (
                 <li
-                  key={userId}
+                  // Keyed by the vote too, so a changed vote pops in again.
+                  key={`${userId}-${decision}`}
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium",
+                    "inline-flex animate-in items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium duration-200 zoom-in-90 fade-in",
                     decision === "save"
                       ? "border-supports text-supports"
                       : "border-dashed border-challenges text-challenges",
